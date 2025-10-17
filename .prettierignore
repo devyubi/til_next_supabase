@@ -77,7 +77,8 @@ tmp/
 temp/
 
 # Editor directories and files
-# .vscode/
+.vscode/
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo
@@ -103,7 +104,16 @@ CHANGELOG.md
 LICENSE
 # README.md
 
-# Config files that should not be formatted
-*.config.js
-*.config.mjs
-*.config.ts
+# Config files — 기본적으로 무시하지만 일부는 예외
+# (Prettier가 포맷하면 문제 생길 수 있는 config만 유지)
+# ❌ 포맷 제외
+vite.config.*
+webpack.config.*
+rollup.config.*
+jest.config.*
+babel.config.*
+
+# ✅ 포맷 허용 (이건 Prettier 적용해도 안전함)
+!eslint.config.mjs
+!next.config.mjs
+!tailwind.config.js
