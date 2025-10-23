@@ -1,8 +1,8 @@
 // React Query 와  Zustand 통합 훅
 
-import { fetchPost, fetchUser } from '@/lib/api';
+import { fetchPost, fetchPosts, fetchUser } from '@/lib/api';
 import { useQueryStore } from '@/stores/queryStore';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // 선택된 사용자 정보를 가져오는 훅
 export function useSelectedUser() {
@@ -36,26 +36,54 @@ export function useSelectedPost() {
 export function useUserSelection() {
   const { selectedUserId, setSelectedUserId } = useQueryStore();
   // 선택된 사용자 정보를 가져오는 훅
-  const selectdUserQuery = useSelectedUser();
+  const selectedUserQuery = useSelectedUser();
   return {
     // 상태
     selectedUserId,
-    selectedUser: selectdUserQuery.data,
-    isLoading: selectdUserQuery.isLoading,
-    error: selectdUserQuery.error,
-    // 내일 진행
+    selectedUser: selectedUserQuery.data, // 사용자 데이터
+    isLoading: selectedUserQuery.isLoading, // 로딩 상태
+    error: selectedUserQuery.error, // 에러 상태
+
+    // 액션들
+    selectUser: (userId: number) => setSelectedUserId(userId),
+    clearSelection: () => setSelectedUserId(null),
+
+    // 쿼리 정보
+    query: selectedUserQuery,
   };
 }
 
-// 게시글 선택 기능을 제공하는 훅
-export function usePostSelection() {}
-
-// 업데이트를 위한 훅
-export function useOptimisticUpdate() {}
-
 // 쿼리 프리패치를 위한 훅
-export function usePrefetchQuery() {}
-
-// React Query 와 Zustand 상태 동기화 훅
-export function useQuerySync() {}
-
+// - 사용자가 특정 데이터를 필요로 할 것이라고 예상해서
+// - 미리 데이터를 가져와서 캐시에 저장하는 프리패치 기능용 훅
+export function usePrefetchQuery() {
+  // React Query 의 전역 캐시(useQuery, useMutation) 를 관리함.
+  const queryClient = useQueryClient();
+  return {
+    // 프리패치할 것들
+    // 1. 사용자 정보를 미리 캐시에 보관함
+    prefetchUser: (userId: number) => {
+      queryClient.prefetchQuery({
+        queryKey: ['users', userId],
+        queryFn: () => fetchUser(userId),
+        staleTime: 5 * 60 * 1000, // 5분 statle 상태
+      });
+    },
+    // 2. 사용자의 게시글을 미리 캐시에 보관함.
+    prefetchUserPosts: (userId: number) => {
+      queryClient.prefetchQuery({
+        queryKey: ['posts', 'user', userId],
+        queryFn: () => fetchPosts(userId),
+        staleTime: 2 * 60 * 1000, // 2분 statle 상태
+      });
+    },
+    // 3. 게시글 정보 프리패치
+    prefetchPost: (postId: number) => {
+      queryClient.prefetchQuery({
+        queryKey: ['posts', postId],
+        queryFn: () => fetchPost(postId),
+        staleTime: 5 * 60 * 1000,
+      });
+    },
+  };
+}
