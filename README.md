@@ -1,26 +1,16 @@
-# 사이트 라우터 구조
+# Shadcn/ui
 
-## 1. 폴더 구조 (`/app/폴더`)
+- https://ui.shadcn.com/docs/components
 
-- / : page.tsx
-- /signin : page.tsx
-- /signup : page.tsx
-- /forget-password : page.tsx
-- /reset-password : page.tsx
-- /profile/[id] : page.tsx
-- /post : page.tsx
-- /post/[id] : page.tsx
+## 활용할 컴포넌트 설치하기
 
-
-## 2. 폴더 구조 (`/app/폴더`)
-
-- / : Home
-- /signin : 로그인 페이지
-- /signup : 회원가입 페이지
-- /forget-password : 비밀번호 찾기
-- /reset-password : 비밀번호 재설정
-- /profile/[id] : 사용자 프로필 페이지
-- /post : 전체 게시글
-- /post/[id] : 상세 게시글
-
-
+```bash
+npx shadcn@latest add button
+npx shadcn@latest add alert-dialog
+npx shadcn@latest add carousel
+npx shadcn@latest add dialog
+npx shadcn@latest add input
+npx shadcn@latest add popover
+npx shadcn@latest add sonner
+npx shadcn@latest add textarea
+```
