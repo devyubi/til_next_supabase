@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { useUserState } from '@/stores/userstore';
+import { useUserState } from '@/stores/UserStore';
 
 /**
  * UserProfile - 사용자 인증 및 프로필 관리 컴포넌트

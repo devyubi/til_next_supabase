@@ -1,9 +1,7 @@
-/**
- * 사용자 목록을 관리하는 React Query Hook
- * - 사용자 목록을 가져오고 관리하는 기능을 제공함
- * - React Query 의 useQuery 를 활용함
- * - 캐싱, 로딩, 에러 처리를 자동화 함
- */
+// 사용자 목록을 관리하는 React Query 훅
+// 사용자 목록을 가져오고 관리하는 기능을 제공함.
+// React Query 의  useQuery 를 활용함.
+// 캐싱, 로딩, 에러 처리를 자동화 함.
 
 import { fetchUser, fetchUsers } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';

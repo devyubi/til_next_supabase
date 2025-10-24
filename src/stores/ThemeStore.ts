@@ -53,7 +53,9 @@ const themeLocalStore = create<ThemeState>()(
         applyTheme(newTheme);
       },
     }),
-    { name: 'theme-storage' }
+    {
+      name: 'theme-storage', // 로컬스토리지에 저장되는 이름
+    }
   )
 );
 

@@ -39,7 +39,6 @@ export interface Todo {
   title: string;
   completed: boolean;
 }
-
 // 사용자 목록가져오기 API
 export async function fetchUsers(): Promise<User[]> {
   // Vanila js 활용(Next.js 의 fetch 아님)

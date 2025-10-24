@@ -74,6 +74,8 @@ const UserDetail = () => {
     );
   }
 
+  // 사용자 정보 및 posts 출력
+
   return (
     <div className='p-6 max-w-4xl mx-auto bg-white rounded-xl shadow-lg space-y-6'>
       {/* 사용자 기본 정보 */}

@@ -23,15 +23,15 @@ import { persist } from 'zustand/middleware';
 
 // 2 단계 1. localStorage 가 적용 안된 버전
 const userStore = create<UserState>()((set, get) => ({
-  // 초기 상태
+  // 초기상태
   user: null,
   isLoggedIn: false,
   isLoading: false,
+
   // 사용자 정보 업데이트
   login: (user: User) =>
     set({ user: user, isLoggedIn: true, isLoading: false }),
   logout: () => set({ user: null, isLoggedIn: false, isLoading: false }),
-
   updateUser: (userData: Partial<User>) =>
     set(state => ({
       user: state.user ? { ...state.user, ...userData } : null,
@@ -62,14 +62,19 @@ const userLocalStore = create<UserState>()(
       // 로딩 상태 설정
       setLoading: (loading: boolean) => set({ isLoading: loading }),
     }),
-    { name: 'user-storage' }
+    {
+      name: 'user-storage',
+      partialize: state => ({
+        user: state.user,
+        isLoggedIn: state.isLoggedIn,
+      }),
+    }
   )
 );
 
 // 3 단계 - custom Hook 정의
 export const useUserState = () => {
-  const { user, isLoading, isLoggedIn, login, logout, updateUser, setLoading } =
+  const { user, isLoggedIn, isLoading, login, logout, updateUser, setLoading } =
     userLocalStore();
-
-  return { user, isLoading, isLoggedIn, login, logout, updateUser, setLoading };
+  return { user, isLoggedIn, isLoading, login, logout, updateUser, setLoading };
 };

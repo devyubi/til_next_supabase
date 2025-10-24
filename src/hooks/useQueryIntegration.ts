@@ -3,6 +3,7 @@
 import { fetchPost, fetchPosts, fetchUser } from '@/lib/api';
 import { useQueryStore } from '@/stores/queryStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { error } from 'console';
 
 // 선택된 사용자 정보를 가져오는 훅
 export function useSelectedUser() {
@@ -36,20 +37,20 @@ export function useSelectedPost() {
 export function useUserSelection() {
   const { selectedUserId, setSelectedUserId } = useQueryStore();
   // 선택된 사용자 정보를 가져오는 훅
-  const selectedUserQuery = useSelectedUser();
+  const selectdUserQuery = useSelectedUser();
   return {
     // 상태
     selectedUserId,
-    selectedUser: selectedUserQuery.data, // 사용자 데이터
-    isLoading: selectedUserQuery.isLoading, // 로딩 상태
-    error: selectedUserQuery.error, // 에러 상태
+    selectedUser: selectdUserQuery.data, // 사용자 데이터
+    isLoading: selectdUserQuery.isLoading, // 로딩 상태
+    error: selectdUserQuery.error, // 에러 상태
 
     // 액션들
     selectUser: (userId: number) => setSelectedUserId(userId),
     clearSelection: () => setSelectedUserId(null),
 
     // 쿼리 정보
-    query: selectedUserQuery,
+    query: selectdUserQuery,
   };
 }
 

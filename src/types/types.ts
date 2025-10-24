@@ -1,21 +1,19 @@
-// Counter 타입 정의
-
+// Counter Store 타입 정의
 export interface CounterState {
-  count: number; // 현재 카운터 값 (숫자)
-  increment: () => void; // 카운터 1 증가
-  decrement: () => void; // 카운터 1 감소
+  count: number; // 현재 카운터 값(숫자)
+  increment: () => void; // 카운터 1증가
+  decrement: () => void; // 카운터 1감소
   reset: () => void; // 카운터 0 초기화
-  setCount: (count: number) => void; // 직접 카운터 값을 설정
+  setCount: (count: number) => void; // 직접 카운터 값 설정
 }
 
-// User Store 타입 정의
+// User 타입 정의
 export interface User {
   id: string;
   name: string;
   email: string;
   avatar?: string;
 }
-
 // User Store 타입
 export interface UserState {
   user: User | null; // 현재 로그인한 사용자 정보(null 이면 로그아웃된 상태)
@@ -27,15 +25,15 @@ export interface UserState {
   setLoading: (loading: boolean) => void; // 로딩 상태 설정 함수
 }
 
-// Theme Store 타입
+// 테마 타입 정의
 // system 테마 : 시스템 설정을 따르는 테마
 export type Theme = 'light' | 'dark' | 'system';
-// Theme Store 타입 정의
 
+// 테마 Store 타입 정의
 export interface ThemeState {
   theme: Theme; // 현재 선택된 테마
-  setTheme: (theme: Theme) => void; // 특정 테마로 설정하는 함ㅅ구
-  toggleTheme: () => void; // 라이트,다크 테마를 전환하는 함수
+  setTheme: (theme: Theme) => void; // 특정 테마로 설정하는 함수
+  toggleTheme: () => void; // 라이트/다크 테마를 전환하는 함수
 }
 
 // Todo 타입 정의
@@ -46,7 +44,6 @@ export interface Todo {
   createdAt: Date;
   updatedAt: Date;
 }
-
 // Todo Store 타입정의
 export interface TodoState {
   // state 타입
@@ -62,6 +59,7 @@ export interface TodoState {
   getFilteredTodos: () => Todo[]; // 현재 선택된 할일 목록만 반환
 }
 
+// React Query Store 타입정의
 export interface QueryState {
   // State
   selectedUserId: number | null; // 현재 선택된 사용자 ID

@@ -1,6 +1,7 @@
 // Todo Store - zustand 로 카운터 관리
 
 import { Todo, TodoState } from '@/types/types';
+import { stat } from 'fs';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -90,6 +91,7 @@ const todoLocalState = create<TodoState>()(
       addTodo: (text: string) => {
         const newTodo: Todo = {
           // 고유한 UUID 생성하기
+          // https://developer.mozilla.org/ko/docs/Web/API/Window/crypto
           id: crypto.randomUUID(),
           text: text,
           completed: false,
@@ -139,9 +141,9 @@ const todoLocalState = create<TodoState>()(
       },
     }),
     {
-      name: 'todo-storage', // 로컬 스토리지에 저장하는 이름 (키명)
-      // 모두 저장 할 이유가 없고 내가 선별해서 저장하고 싶다면?
-      // 새로 고침시 filter 는 'all' 이었으면 좋겠다
+      name: 'todo-storage', // 로컬스토리지에 저장하는 이름(키명)
+      // 모두 저장할 이유가 없고 내가 선별해서 저장하고 싶다면?
+      // 새로 고침시 filter 는 "all" 이었으면 좋겠다.
       partialize: state => ({ todos: state.todos }),
     }
   )
@@ -155,9 +157,9 @@ export const useTodoStore = () => {
     addTodo,
     toggleTodo,
     updateTodo,
+    setFilter,
     deleteTodo,
     clearCompleted,
-    setFilter,
     getFilteredTodos,
   } = todoLocalState();
 
@@ -167,9 +169,9 @@ export const useTodoStore = () => {
     addTodo,
     toggleTodo,
     updateTodo,
+    setFilter,
     deleteTodo,
     clearCompleted,
-    setFilter,
     getFilteredTodos,
   };
 };

@@ -1,10 +1,10 @@
-// 할 일을 관리하는 React Query 훅
+// 할일을 관리하는 React Query 훅
 
 import { fetchTodos, Todo } from '@/lib/api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { resolve } from 'path';
+import { error } from 'console';
 
-// 할 일 목록 가져오기 훅
+// 할일 목록 가져오기 훅
 export function useTodos(userId?: number) {
   return useQuery({
     queryKey: userId ? ['todos', 'user', userId] : ['todos'],
@@ -14,16 +14,16 @@ export function useTodos(userId?: number) {
   });
 }
 
-// 완료 상태로 할 일을 필터링 하는 훅
+// 완료 상태로 할일을 필터링 하는 훅
 export function useTodaysByStatus(userId?: number, completed?: boolean) {
   return useQuery({
     queryKey: ['todos', 'user', userId, 'status', completed],
     queryFn: async () => {
       const todos = await fetchTodos(userId);
       // 완료 상태가 지정된 경우 필터링
-      // completed 가 true 면 완료 (completed === true)
-      // completed 가 false 면 미완료 (completed === false)
-      // completed 가 undefined 면 모두 다 (completed === undefined)
+      // complted === true :  완료
+      // complted === false :  미완료
+      // complted === undefiend :  모두다
       if (completed !== undefined) {
         return todos.filter(todo => todo.completed === completed);
       }
@@ -33,8 +33,7 @@ export function useTodaysByStatus(userId?: number, completed?: boolean) {
     gcTime: 5 * 60 * 1000,
   });
 }
-
-// 할 일 통계 정보를 가져오는 훅
+// 할일 통계 정보를 가져오는 훅
 export function useTodoStats(userId?: number) {
   const todosQuery = useTodos(userId);
 
@@ -57,7 +56,7 @@ export function useTodoStats(userId?: number) {
   };
 }
 
-// 새 할 일을 생성하는 뮤테이션 훅
+// 새 할일 생성하는 뮤테이션 훅
 export function useCreateTodo() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -79,7 +78,7 @@ export function useCreateTodo() {
   });
 }
 
-// 할 일을 수정하는 뮤테이션 훅
+// 할일을 수정하는 뮤테이션 훅
 export function useUpdateTodo() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -108,7 +107,7 @@ export function useUpdateTodo() {
   });
 }
 
-// 할 일을 삭제하는 뮤테이션 훅
+// 할일 삭제하는 뮤테이션 훅
 export function useDeleteTodo() {
   const queryClient = useQueryClient();
   return useMutation({
