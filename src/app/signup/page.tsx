@@ -57,7 +57,7 @@ function SignUp() {
       <div>
         <Link
           href={'/signin'}
-          className='text-muted-foreground hover:text-gray-300'
+          className='text-muted-foreground hover:text-gray-300 cursor-pointer'
         >
           이미 계정이 있다면? 로그인
         </Link>
