@@ -1,126 +1,10 @@
-# Supabase 구글 소셜 로그인
+# Supabase 인증 에러 처리하기
 
-## 1. 개발자 사이트 등록 및 Supabase 세팅
+## 1. 인증 Error 정보 받기
 
-- https://cloud.google.com/cloud-console?hl=ko
-
-## 2. UI 작성
-
-- `/src/app/signin/page.tsx` 업데이트
-
-```tsx
-'use client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useSignInWithKakao } from '@/hooks/mutations/useSignInWithKakao';
-import { useSignInWithPassword } from '@/hooks/mutations/useSignInWithPassword';
-import Link from 'next/link';
-import { useState } from 'react';
-
-function SignIn() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  // 이메일로 로그인
-  const { mutate: signInPassword, isPending: isPendingPassword } =
-    useSignInWithPassword();
-  const handleSignInWithEmail = () => {
-    if (!email.trim()) return;
-    if (!password.trim()) return;
-    // 이메일을 이용해서 로그인 진행
-    signInPassword({ email: email, password: password });
-  };
-
-  // 카카오 로그인
-  const { mutate: signInWithKakao, isPending: isPendingKakao } =
-    useSignInWithKakao();
-  const handleSignInWithKakao = () => {
-    signInWithKakao('kakao');
-  };
-
-  return (
-    <div className='flex flex-col gap-8'>
-      <div className='text-xl font-bold'>로그인</div>
-      <div className='flex flex-col gap-2'>
-        <Input
-          disabled={isPendingPassword}
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          type='email'
-          className='py-6'
-          placeholder='이메일을 입력해 주세요.'
-        />
-        <Input
-          disabled={isPendingPassword}
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          type='password'
-          className='py-6'
-          placeholder='비밀번호를 입력해 주세요.'
-        />
-      </div>
-      <div className='flex flex-col gap-2'>
-        <Button
-          onClick={handleSignInWithEmail}
-          className='w-full cursor-pointer'
-          disabled={isPendingPassword}
-        >
-          로그인
-        </Button>
-        {/* 카카오 로그인 */}
-        <Button
-          onClick={handleSignInWithKakao}
-          className='w-full cursor-pointer bg-amber-300 hover:bg-amber-200 hover:text-white text-black'
-          disabled={isPendingKakao}
-        >
-          카카오 계정으로 로그인
-        </Button>
-        {/* 구글 로그인 */}
-        <Button
-          onClick={handleSignInWithKakao}
-          className='w-full cursor-pointer bg-gray-600 hover:bg-gray-500 text-white'
-          disabled={isPendingKakao}
-        >
-          구글 계정으로 로그인
-        </Button>
-      </div>
-      <div>
-        <Link
-          href={'/signup'}
-          className='text-muted-foreground hover:text-gray-400 cursor-pointer'
-        >
-          계정이 없으시다면? 회원가입
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-export default SignIn;
-```
-
-## 3. API 작성
-
-- `/src/apis/auth.ts` 기능 재활용
+- `/src/apis/auth.ts` 파악하기 ( 하단 `if (error) throw error;` )
 
 ```ts
-import supabase from '@/lib/supabase/client';
-import type { Provider } from '@supabase/auth-js'; // 직접 타이핑
-
-// supabase 백엔드에 사용자 이메일 회원가입
-export async function signUpWithEmail({
-  email,
-  password,
-}: {
-  email: string;
-  password: string;
-}) {
-  // 웹브라우저를 이용해서 이메일 회원가입
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) throw error;
-
-  return data;
-}
-
 // supabase 백엔드에 사용자 이메일 로그인
 export async function signInWithPassword({
   email,
@@ -134,37 +18,176 @@ export async function signInWithPassword({
     email,
     password,
   });
+  // 이 부분이 에러의 대한 정보를 가지고 있음.
   if (error) throw error;
 
-  return data;
-}
-
-// supabase 백엔드에 소셜 로그인
-export async function signInWithOAuth(provider: Provider) {
-  const { data, error } = await supabase.auth.signInWithOAuth({ provider });
-  if (error) throw error;
   return data;
 }
 ```
 
-## 4. Mutation 작성
+## 2. Mutation 에서 Error 정보 확인 및 처리
 
-- `/src/hooks/mutations/useSignInWithGoogle.ts 파일` 생성
+- `/src/hooks/mutations/useSignWithPassword.ts`
 
 ```ts
-import { signInWithOAuth } from '@/apis/auth';
+import { signInWithPassword } from '@/apis/auth';
 import { useMutation } from '@tanstack/react-query';
 
-export function useSignInWithGoogle() {
+export function useSignInWithPassword() {
   return useMutation({
-    mutationFn: signInWithOAuth,
+    mutationFn: signInWithPassword,
+    // 자동으로 Error 를 전달 받음
+    onError: error => {
+      console.error(error);
+      alert(error.message);
+    },
   });
 }
 ```
 
-## 5. 적용하기
+## 3. shadcn/ui 의 sonner 컴포넌트를 활용하여 alert 창 처리
 
-- `/src/app/signin/page.tsx` 업데이트
+- https://ui.shadcn.com/docs/components/sonner
+
+```bash
+npx shadcn@latest add sonner
+```
+
+### 3.1. 토스트 안내 메세지는 `앱 전체에서 활용이 가능해야함`
+
+- 전체 레이아웃의 배치하는 것이 좋음
+- 하지만 /src/app/layout.tsx 에 `'use client'` 사용은 고민 필요
+- 그래서 `별도의 토스트용 컴포넌트` 를 생성하여 layout.tsx 에 배치를 권장함
+
+### 3.2. 토스트 컴포넌트 생성
+
+- `/src/components/providers 폴더` 생성
+- `/src/components/providers/ToastProvider.tsx 파일` 생성
+
+```tsx
+'use client';
+import { Toaster } from '../ui/sonner';
+export default function ToastProvider() {
+  return <Toaster />;
+}
+```
+
+### 3.3. layout.tsx 에 배치하기
+
+- `/src/app/layouy.tsx` 업데이트
+- 앱 전체에서 활용 가능하도록 해야 함
+
+```tsx
+import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
+import './globals.css';
+import QueryProvider from '@/components/providers/QueryProvider';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Sun } from 'lucide-react';
+import ToastProvider from '@/components/providers/ToastProvider';
+
+const geistSans = Geist({
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+});
+
+const geistMono = Geist_Mono({
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+});
+
+export const metadata: Metadata = {
+  title: 'Create Next App',
+  description: 'Generated by create next app',
+};
+
+// 이미지 가져오기
+const logo = '/assets/inu.png';
+const defaultAvatar = '/assets/icons/default-avatar.jpg';
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang='ko'>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <div className='flex min-h-[100vh] flex-col'>
+          {/* 컴포넌트 배치 */}
+          <ToastProvider />
+          <QueryProvider>
+            <header className='h-15 border-b'>
+              <div className='m-auto flex h-full w-full max-w-175 justify-between px-4'>
+                <Link href={'/'} className='flex items-center gap-2'>
+                  <Image
+                    src={logo}
+                    alt='SNS 서비스 로고'
+                    width={40}
+                    height={40}
+                  />
+                  <div className='font-bold'>SNS 서비스</div>
+                </Link>
+
+                <div className='flex items-center gap-5'>
+                  <div className='hover:bg-muted cursor-pointer rounded-full p-2'>
+                    <Sun />
+                  </div>
+                  <Image
+                    src={defaultAvatar}
+                    alt='기본 아바타'
+                    width={24}
+                    height={24}
+                    className='h-6'
+                  />
+                </div>
+              </div>
+            </header>
+            <main className='m-auto w-full max-w-175 flex-1 border-x px-4 py-6'>
+              {children}
+            </main>
+            <footer className='text-muted-foreground border-t py-10 text-center'>
+              @devgeact
+            </footer>
+          </QueryProvider>
+        </div>
+      </body>
+    </html>
+  );
+}
+```
+
+### 3.4. 이벤트 발생시키기
+
+- `/src/hooks/mutations/useSignWithPassword.ts`
+
+```tsx
+import { signInWithPassword } from '@/apis/auth';
+import { UseMutationCallback } from '@/types/types';
+import { useMutation } from '@tanstack/react-query';
+
+export function useSignInWithPassword(callback?: UseMutationCallback) {
+  return useMutation({
+    mutationFn: signInWithPassword,
+    // 자동으로 error 전달받음
+    onError: error => {
+      console.error(error);
+
+      // 컴포넌트에서 전달받은 Error임. 위에꺼 아님
+      if (callback?.onError) callback.onError(error);
+    },
+  });
+}
+```
+
+## 4. Error 발생 시 우리가 원하는 함수 실행 시키기
+
+### 4.1. `콜백함수 전달`하기
+
+- `/src/app/signin/page.tsx`
 
 ```tsx
 'use client';
@@ -175,13 +198,20 @@ import { useSignInWithKakao } from '@/hooks/mutations/useSignInWithKakao';
 import { useSignInWithPassword } from '@/hooks/mutations/useSignInWithPassword';
 import Link from 'next/link';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   // 이메일로 로그인
   const { mutate: signInPassword, isPending: isPendingPassword } =
-    useSignInWithPassword();
+    useSignInWithPassword({
+      onError: error => {
+        setPassword('');
+        // alert 창 대신 Sonner 로 띄우기
+        toast.error(error.message, { position: 'top-center' });
+      },
+    });
   const handleSignInWithEmail = () => {
     if (!email.trim()) return;
     if (!password.trim()) return;
@@ -243,7 +273,7 @@ function SignIn() {
         {/* 구글 로그인 */}
         <Button
           onClick={handleSignInWithGoogle}
-          className='w-full cursor-pointer bg-gray-600 hover:bg-gray-500 text-white'
+          className='w-full cursor-pointer bg-gray-300 hover:bg-gray-400 hover:text-white text-gray-600'
           disabled={isPendingGoogle}
         >
           구글 계정으로 로그인
@@ -262,4 +292,65 @@ function SignIn() {
 }
 
 export default SignIn;
+```
+
+- 1 단계 : 객체 전달
+
+```tsx
+const { mutate: signInPassword, isPending: isPendingPassword } =
+  useSignInWithPassword(객체);
+```
+
+- 2 단계 : 객체 정의
+
+```tsx
+const { mutate: signInPassword, isPending: isPendingPassword } =
+  useSignInWithPassword({});
+```
+
+- 3 단계 : 객체에 키명: 기능정의
+
+```tsx
+const { mutate: signInPassword, isPending: isPendingPassword } =
+  useSignInWithPassword({
+    onError: () => {
+      setPassword('');
+    },
+  });
+```
+
+- 4 단계 : 훅에서 전달 된 객체를 처리하는 과정
+
+```ts
+import { signInWithPassword } from '@/apis/auth';
+import { UseMutationCallback } from '@/types/types';
+import { useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
+
+export function useSignInWithPassword(callback?: UseMutationCallback) {
+  return useMutation({
+    mutationFn: signInWithPassword,
+    // 자동으로 error 전달받음
+    onError: error => {
+      console.error(error);
+      // alert 창 대신 Sonner 로 띄우기
+      toast.error(error.message, { position: 'top-center' });
+      // 컴포넌트에서 전달받은 Error임. 위에꺼 아님
+      if (callback?.onError) callback.onError(error);
+    },
+  });
+}
+```
+
+### 4.2. `Mutation 콜백 함수 타입을 정의` 해서 활용하길 권장함
+
+- `/src/types/types.ts` 에 정의해둠.
+
+```ts
+export type UseMutationCallback = {
+  onError?: (error: Error) => void;
+  onSuccess?: () => void;
+  onMutate?: () => void;
+  onSettled?: () => void;
+};
 ```

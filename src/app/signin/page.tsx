@@ -6,13 +6,20 @@ import { useSignInWithKakao } from '@/hooks/mutations/useSignInWithKakao';
 import { useSignInWithPassword } from '@/hooks/mutations/useSignInWithPassword';
 import Link from 'next/link';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 function SignIn() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   // 이메일로 로그인
   const { mutate: signInPassword, isPending: isPendingPassword } =
-    useSignInWithPassword();
+    useSignInWithPassword({
+      onError: error => {
+        setPassword('');
+        // alert 창 대신 Sonner 로 띄우기
+        toast.error(error.message, { position: 'top-center' });
+      },
+    });
   const handleSignInWithEmail = () => {
     if (!email.trim()) return;
     if (!password.trim()) return;
@@ -74,7 +81,7 @@ function SignIn() {
         {/* 구글 로그인 */}
         <Button
           onClick={handleSignInWithGoogle}
-          className='w-full cursor-pointer bg-gray-600 hover:bg-gray-500 text-white'
+          className='w-full cursor-pointer bg-gray-300 hover:bg-gray-400 hover:text-white text-gray-600'
           disabled={isPendingGoogle}
         >
           구글 계정으로 로그인

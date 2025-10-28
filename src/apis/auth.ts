@@ -29,8 +29,8 @@ export async function signInWithPassword({
     email,
     password,
   });
+  // 이 부분이 에러의 대한 정보를 가지고 있음.
   if (error) throw error;
-
   return data;
 }
 
