@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { useSignInWithGoogle } from '@/hooks/mutations/useSignInWithGoogle';
 import { useSignInWithKakao } from '@/hooks/mutations/useSignInWithKakao';
 import { useSignInWithPassword } from '@/hooks/mutations/useSignInWithPassword';
+import { getErrorMessage } from '@/lib/error';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -17,7 +18,8 @@ function SignIn() {
       onError: error => {
         setPassword('');
         // alert 창 대신 Sonner 로 띄우기
-        toast.error(error.message, { position: 'top-center' });
+        const message = getErrorMessage(error);
+        toast.error(message, { position: 'top-center' });
       },
     });
   const handleSignInWithEmail = () => {
@@ -29,14 +31,28 @@ function SignIn() {
 
   // 카카오 로그인
   const { mutate: signInWithKakao, isPending: isPendingKakao } =
-    useSignInWithKakao();
+    useSignInWithKakao({
+      onError: error => {
+        // Sonner 로 띄우기
+        // 한글 메시지로 교체
+        const message = getErrorMessage(error);
+        toast.error(message, { position: 'top-center' });
+      },
+    });
   const handleSignInWithKakao = () => {
     signInWithKakao('kakao');
   };
 
   // 구글 로그인
   const { mutate: signInWithGoogle, isPending: isPendingGoogle } =
-    useSignInWithGoogle();
+    useSignInWithGoogle({
+      onError: error => {
+        // Sonner 로 띄우기
+        // 한글 메시지로 교체
+        const message = getErrorMessage(error);
+        toast.error(message, { position: 'top-center' });
+      },
+    });
   const handleSignInWithGoogle = () => {
     signInWithGoogle('google');
   };
