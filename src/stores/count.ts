@@ -1,4 +1,31 @@
 import { create } from 'zustand';
+import { combine } from 'zustand/middleware';
+
+create(combine({ count: 0 }, (set, get) => (리턴객체) ));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 type CountStoreType = {
   count: number;
