@@ -1,7 +1,7 @@
 'use client';
 import TodoEditor from '@/components/todo/TodoEditor';
 import TodoItem from '@/components/todo/TodoItem';
-import { useFetchTodos } from '@/hooks/queries/useFetchTodos';
+import { useFetchTodos } from '@/hooks/todos/queries/useFetchTodos';
 
 export default function TodoListPage() {
   const { data: todos, isLoading, error } = useFetchTodos();

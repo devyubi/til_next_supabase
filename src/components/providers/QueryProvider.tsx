@@ -22,10 +22,12 @@ export default function QueryProvider({
       new QueryClient({
         defaultOptions: {
           queries: {
-            // 서버 사이드에서는 즉시 staleTime을 0으로 처리
             staleTime: 0,
-            // 서버 사이드에서는 캐시하지 않음
-            gcTime: 0,
+            gcTime: 5 * 60 * 1000, // 5분
+            refetchOnMount: true, // 마운트 시점에 리패칭 On
+            refetchOnWindowFocus: false, // 윈도우 포커스 시점에 리패칭 끄기
+            refetchOnReconnect: false, // 리커넥트 시점에 리패칭 끄기
+            refetchInterval: false, // interval 리패칭 끄기
           },
         },
       })

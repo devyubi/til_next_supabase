@@ -1,156 +1,29 @@
-# 프로필 추가를 위한 테이블 생성
+# 데이터 캐싱 실습
 
-## 1. 테이블 구성
+## 1. 상세 페이지
 
-- `profiles`
-- `SNS 서비스 회원 프로필`
-- RLS 해제
-
-## 2. 칼럼 구성
-
-- id : `uuid`, `auth.uid()`
-- created_at : 기본
-- nickname : `text`, `Empty`, `Not Null`
-- bio : `text`, `Empty`, `Not Null`
-- avatar_url : `text`
-- role : `text`, "MEMBER", `Not Null`
-- 반드시 save 버튼을 클릭하자.
-
-## 3. Type Script 데이터형 출력
-
-- 터미널 작업(Supabase 사이트 로그인 후 진행)
-
-```bash
-npx supabase login
-```
-
-- 로그인 인증 이후 타입 출력
-
-```bash
-npm run generate-types
-```
-
-- `/src/types/database.types.ts` 확인
-
-## 4. profiles 타입정의 작성
-
-- `/src/types/types.ts` 업데이트
-
-```ts
-import { type Database } from './database.types';
-
-// 포스트 관련
-export type PostEntity = Database['public']['Tables']['posts']['Row'];
-export type InsertPostEntity = Database['public']['Tables']['posts']['Insert'];
-export type UpdatePostEntity = Database['public']['Tables']['posts']['Update'];
-export type PostTableEntity = Database['public']['Tables']['posts'];
-
-// 프로필 관련
-export type ProfileEntity = Database['public']['Tables']['profiles']['Row'];
-export type InsertProfileEntity =
-  Database['public']['Tables']['profiles']['Insert'];
-export type UpdateProfileEntity =
-  Database['public']['Tables']['profiles']['Update'];
-export type ProfileTableEntity = Database['public']['Tables']['profiles'];
-
-export type UseMutationCallback = {
-  onError?: (error: Error) => void;
-  onSuccess?: () => void;
-  onMutate?: () => void;
-  onSettled?: () => void;
-};
-```
-
-## 5. 회원 프로필 자동 추가 관련
-
-### 5.1. 데이터베이스 `트리거`
-
-- 일반적으로 회원가입 후 자동으로 DB 에서 트리거를 통해 회원정보 입력이 기본
-- `트리거`는 JS의 `이벤트 핸들러` 라고 생각하면 됩니다.
-- 어떤 이벤트가 발생하면 이후 자동으로 실행되는 함수를 말함.
-- DB 에 사용자가 추가되면 `새로운 proifies 에 데이터를 입력하라`는 것
-- DB 전문가가 있는 경우 일반적으로 진행하는 형태.
-
-### 5.2. `트리거`의 문제점
-
-- 트리거가 에러시 대응이 어렵습니다.
-- `DB 전문가가 디버깅`을 하는 어려움이 있음.
-- 리액트에서 처리를 하여도 됩니다.
-- 최대한 안전하게 그리고, 대응이 수월하도록 React 에서 처리함.
-
-## 6. 애플리케이션에서 처리하는 과정
-
-- 회원가입 완료
-- 완료 후 나의 프로필이 있는지 profiles 테이블에 조회진행 (select)
-- 조회의 결과가 없다면
-- 프로필을 생성하는 단계 요청
-- 데이터 조회의 과정은 `useQuery` 로 진행
-- 데이터 입력의 과정은 `useMutation` 으로 진행
-
-# useQuery의 이해
-
-## 1. React Query
-
-- `서버의 상태를 관리`함.
-- 대표적인 `서버의 상태`
-  : 로딩 상태(isLoading)
-  : 성공, 실패 상태(status)
-  : 에러객체(error)
-  : 캐시상태(cacheOption)
-- 설치 : `npm i @tanstack/react-query`
-
-## 2. React Query 설정
-
-- `/src/components/providers/QueryProvider.tsx`
+- `/src/app/todo-detail 폴더` 생성
+- `/src/app/todo-detail/[id] 폴더` 생성
+- `/src/app/todo-detail/[id]/page.tsx 파일` 생성
 
 ```tsx
-const [client, setClient] = useState(() => new QueryClient());
+type TodoDetailPage = {
+  params: Promise<{ id: number }>;
+};
+
+export default async function TodoDetailPage({ params }: TodoDetailPage) {
+  const { id } = await params;
+  return <div>{id} : 상세페이지</div>;
+}
 ```
 
-- 적용 : `/src/app/layout.tsx` 확인
+## 2. 링크 걸기
 
-## 3. 실습용 서버 URL
-
-- https://jsonplaceholder.typicode.com
-
-## 4. 데이터 조회 요청 관리
-
-### 4.1. 실습 예제 구성
-
-- `/src/components/todo 폴더` 생성
-- `/src/components/todo/TodoEditor.tsx 파일` 생성
+- `/src/components/todo/TodoItem.tsx` 업데이트
 
 ```tsx
 'use client';
-import { useState } from 'react';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-
-const TodoEditor = () => {
-  const [content, setContent] = useState('');
-  const handleAddClick = () => {
-    if (content.trim() === '') return;
-    setContent('');
-  };
-  return (
-    <div className='flex gap-2'>
-      <Input
-        value={content}
-        onChange={e => setContent(e.target.value)}
-        placeholder='새로운 할 일을 입력하세요 ...'
-      />
-      <Button onClick={handleAddClick}>추가</Button>
-    </div>
-  );
-};
-
-export default TodoEditor;
-```
-
-- `/src/components/todo/TodoItem.tsx 파일` 생성
-
-```tsx
-'use client';
+import Link from 'next/link';
 import { Button } from '../ui/button';
 
 export default function TodoItem({
@@ -164,7 +37,9 @@ export default function TodoItem({
 
   return (
     <div className='flex items-center justify-between border p-2'>
-      {content}
+      {/* 링크걸기 */}
+      <Link href={`/todo-detail/${id}`}>{content}</Link>
+
       <Button onClick={handleDeleteClick} variant={'destructive'}>
         삭제
       </Button>
@@ -173,315 +48,232 @@ export default function TodoItem({
 }
 ```
 
-### 4.2. 페이지 구성
+## 3. API 만들기
 
-- `/src/app/todo-list 폴더` 생성
-- `/src/app/todo-list/page.tsx` 생성
-
-```tsx
-import TodoEditor from '@/components/todo/TodoEditor';
-import TodoItem from '@/components/todo/TodoItem';
-
-export default function TodoListPage() {
-  return (
-    <div className='flex flex-col gap-5 p-5'>
-      <h1 className='text-2xl font-bold'>Todo List</h1>
-      <TodoEditor />
-      <div className='flex flex-col gap-2'>
-        <TodoItem id={1} content='Todo 1' />
-        <TodoItem id={2} content='Todo 2' />
-        <TodoItem id={3} content='Todo 3' />
-      </div>
-    </div>
-  );
-}
-```
-
-## 5. 비동기 API 구성
-
-### 5.1. 기존 방식
-
-- 직접 개발자가 API 를 다루어 줌.
-- `/src/app/todo-list/page.tsx`
-
-```tsx
-'use client';
-import TodoEditor from '@/components/todo/TodoEditor';
-import TodoItem from '@/components/todo/TodoItem';
-import { useEffect, useState } from 'react';
-
-type Todo = {
-  id: number;
-  userId: number;
-  title: string;
-  completed: boolean;
-};
-
-// API 함수로 할일 목록 전체 불러들이기 기능
-async function fetchTodos() {
-  const response = await fetch('https://jsonplaceholder.typicode.com/todos');
-  if (!response.ok) throw new Error('목록을 가져오는데 실패함');
-  const todos: Todo[] = await response.json();
-  return todos;
-}
-
-export default function TodoListPage() {
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-
-  // api 함수 호출
-  const getTodos = async () => {
-    setIsLoading(true);
-    try {
-      const result = await fetchTodos();
-      setTodos(result);
-    } catch (error) {
-      setError(error as Error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // api 호출
-    getTodos();
-  }, []);
-  return (
-    <div className='flex flex-col gap-5 p-5'>
-      <h1 className='text-2xl font-bold'>Todo List</h1>
-      <TodoEditor />
-      <div className='flex flex-col gap-2'>
-        {todos.map(item => (
-          <TodoItem key={item.id} id={item.id} content={item.title} />
-        ))}
-      </div>
-    </div>
-  );
-}
-```
-
-### 5.2. useQuery 로 진행해봄.
-
-- `/src/app/todo-list/page.tsx`
-
-```tsx
-'use client';
-import TodoEditor from '@/components/todo/TodoEditor';
-import TodoItem from '@/components/todo/TodoItem';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-
-type Todo = {
-  id: number;
-  userId: number;
-  title: string;
-  completed: boolean;
-};
-
-// API 함수로 할일 목록 전체 불러들이기 기능
-async function fetchTodos() {
-  const response = await fetch('https://jsonplaceholder.typicode.com/todos');
-  if (!response.ok) throw new Error('목록을 가져오는데 실패함');
-  const todos: Todo[] = await response.json();
-  return todos;
-}
-
-export default function TodoListPage() {
-  const {
-    data: todos,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ['todos'],
-    queryFn: fetchTodos,
-  });
-  if (isLoading) return <div>로딩중 ...</div>;
-  if (error) return <div>에러입니다: {error.message}</div>;
-  if (!todos) return <div>데이터가 없습니다.</div>;
-
-  return (
-    <div className='flex flex-col gap-5 p-5'>
-      <h1 className='text-2xl font-bold'>Todo List</h1>
-      <TodoEditor />
-      <div className='flex flex-col gap-2'>
-        {todos.map(item => (
-          <TodoItem key={item.id} id={item.id} content={item.title} />
-        ))}
-      </div>
-    </div>
-  );
-}
-```
-
-### 5.3. retry 옵션
-
-- 기본값은 4회.
-- retry 동안 `isLoading` 으로 처리됨.
-- 일시적으로 네트워크 오류거나 서버가 느려지는 경우 자동으로 재요청을 합니다.
-
-```tsx
-const {
-  data: todos,
-  isLoading,
-  error,
-} = useQuery({
-  queryKey: ['todos'],
-  queryFn: fetchTodos,
-  retry: 3,
-});
-```
-
-### 5.4. 기능별 파일 분리
-
-- type 분리 : `/src/types/todo-type.ts 파일` 생성
+- `/src/apis/todos.ts` : api 추가 업데이트
 
 ```ts
-export type Todo = {
-  id: number;
-  userId: number;
-  title: string;
-  completed: boolean;
-};
-```
-
-- api 분리 : `/src/apis/todo.ts 파일` 생성
-
-```ts
-import { Todo } from '@/types/todo-type';
-
-// API 함수로 할일 목록 전체 불러들이기 기능
-export async function fetchTodos() {
-  const response = await fetch('https://jsonplaceholder3.typicode.com/todos');
-  if (!response.ok) throw new Error('목록을 가져오는데 실패함');
-  const todos: Todo[] = await response.json();
-  return todos;
+// API 함수로 1개의 id 를 전달 받아서 상세 내용 불러들이기 기능
+export async function fetchTodoById(id: number) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_APP_URL_DEMO}/todos/${id}`
+  );
+  if (!response.ok) throw new Error('상세 데이터가 없습니다.');
+  const data: Todo = await response.json();
+  return data;
 }
 ```
 
-- `/src/hooks/todos 폴더` 생성
-- `/src/hooks/todos/queries 폴더` 생성
-- `/src/hooks/todos/queries/useFetchTodos.ts 파일` 생성
+## 4. query hook 만들기
+
+- `/src/hooks/todos/queries/useTodoDataById.ts 파일` 생성
 
 ```ts
-import { fetchTodos } from '@/apis/todo';
+import { fetchTodoById } from '@/apis/todo';
 import { useQuery } from '@tanstack/react-query';
 
-export function useFetchTodos() {
+export function useTodoDataById(id: number) {
   return useQuery({
-    queryKey: ['todos'],
-    queryFn: fetchTodos,
+    queryKey: ['todos', id],
+    queryFn: () => fetchTodoById(id),
   });
 }
 ```
 
-- `/src/app/todo-list/page.tsx` 활용하기
+## 5. 활용하기
+
+- `/src/components/todo/TodoDetail.tsx 파일` 생성
 
 ```tsx
 'use client';
-import TodoEditor from '@/components/todo/TodoEditor';
-import TodoItem from '@/components/todo/TodoItem';
-import { useFetchTodos } from '@/hooks/queries/useFetchTodos';
 
-export default function TodoListPage() {
-  const { data: todos, isLoading, error } = useFetchTodos();
-  if (isLoading) return <div>로딩중 ...</div>;
-  if (error) return <div>에러입니다: {error.message}</div>;
-  if (!todos) return <div>데이터가 없습니다.</div>;
+import { useTodoDataById } from '@/hooks/todos/queries/useTodoDataById';
 
-  return (
-    <div className='flex flex-col gap-5 p-5'>
-      <h1 className='text-2xl font-bold'>Todo List</h1>
-      <TodoEditor />
-      <div className='flex flex-col gap-2'>
-        {todos.map(item => (
-          <TodoItem key={item.id} id={item.id} content={item.title} />
-        ))}
-      </div>
-    </div>
-  );
+type TodoDetailProps = {
+  id: number;
+};
+
+const TodoDetail = ({ id }: TodoDetailProps) => {
+  const { data, isLoading, error } = useTodoDataById(id);
+  if (isLoading) return <div>로딩 중 ...</div>;
+  if (error) return <div>Error. {error.message}</div>;
+  if (!data) return <div>자료가 존재하지 않습니다.</div>;
+
+  return <div>TodoDetail : {data.title}</div>;
+};
+
+export default TodoDetail;
+```
+
+- `/src/app/todo-detail/[id]/page.tsx` 업데이트
+
+```tsx
+import TodoDetail from '@/components/todo/TodoDetail';
+
+type TodoDetailPage = {
+  params: Promise<{ id: number }>;
+};
+
+export default async function TodoDetailPage({ params }: TodoDetailPage) {
+  const { id } = await params;
+  return <TodoDetail id={id} />;
 }
 ```
 
-# useQuery 의 `데이터 캐싱` 상태 이해하기
+## 6. 데이터캐싱 확인해보기
 
-- 아래처럼 작성하면 ['todos'] 라는 이름으로 데이터를 보관함
+- Devtools 를 활용
+- 처음에는 `stale` 상태이다.
+- 이유는 기본 `staleTime` 이 `0` 으로 글로벌 셋팅되어있다.
+- 컴포넌트가 화면에 Mount 가 되면 `stale` 상태면 `Refetching` 으로 데이터 호출함
+- 웹브라우저의 WindowFocus가 되면 `stale` 상태면 `Refetching` 으로 데이터 호출함
+- 네트워크가 끊겼다가 연결(Reconnect) 되면 `stale` 상태면 `Refetching` 으로 데이터 호출함
+- 옵션으로 refetchInterval 를 초 단위로 지정하게되면, `stale` 상태라면 `Refetching` 으로
+
+### 6.1. refetching 끄기 옵션
+
+- /src/hooks/todos/queries/useTodoDataById.ts
 
 ```ts
-useQuery({
-  queryKey: ['todos'],
-  queryFn: fetchTodos,
-});
+import { fetchTodoById } from '@/apis/todo';
+import { useQuery } from '@tanstack/react-query';
+
+export function useTodoDataById(id: number) {
+  return useQuery({
+    queryKey: ['todos', id],
+    queryFn: () => fetchTodoById(id),
+    // 1초마다 리패칭
+    // refetchInterval : 1000,
+    refetchOnMount: false, // 마운트 시점에 리패칭 끄기
+    refetchOnWindowFocus: false, // 윈도우 포커스 시점에 리패칭 끄기
+    refetchOnReconnect: false, // 리커넥트 시점에 리패칭 끄기
+    refetchInterval: false, // interval 리패칭 끄기
+  });
+}
 ```
 
-## 1. `캐시 데이터`
+### 6.2. staleTime 옵션 이해하기
 
-- 일정한 시간동안 중복된 데이터 요청이 있을 때 활용됨
-- 불필요한 데이터 요청이 들어오면 캐시 데이터를 즉시 리턴함
+- /src/hooks/todos/queries/useTodoDataById.ts
 
-## 2. 최신 데이터를 반영하여야 하는 경우
+```ts
+import { fetchTodoById } from '@/apis/todo';
+import { useQuery } from '@tanstack/react-query';
 
-- 특정 시간 이후에 데이터가 자동으로 갱신됨
-- 원할 때 삭제하거나, 최신 데이터를 반영하는 옵션을 제공함
+export function useTodoDataById(id: number) {
+  return useQuery({
+    queryKey: ['todos', id],
+    queryFn: () => fetchTodoById(id),
+    // 5초동안 fresh 유효기간
+    staleTime: 5000,
+  });
+}
+```
 
-## 3. `캐시 데이터 상태 5가지 이해` 가 필수임
+- stale 한 데이터의 역할은 일단 화면에 내용을 빠르게 출력을 해주는 역할
+- refetching 이 끝나면, 새로운 데이터를 출력시켜줌
+- 일단 캐싱된 데이터를 사용해서 빠르게 화면을 렌더링하고, 최신 데이터를 불러오는 리패칭 과정이 마무리 되면 그때 교체하는 방식임.
 
-### 3.1. Fetching 상태
+### 6.3. Refetching 4가지
 
-- 1번 단계
-- api 요청 시, `아직 데이터가 불러들여지는 중` 의 상태
-- 캐시에 보관 안됨.
-- 완료되면 `Fresh 상태` 로 변경 됨.
+- 전제 조건은 해당하는 캐시 데이터가 `stale` 상태일 때 아래 실행됨.
 
-### 3.2. Fresh 상태
+- Mount : 해당하는 캐시 데이터를 사용하는 컴포넌트가 마운트 될 때
+- WindowFocus : 사용자가 현재 탭으로 돌아올 때
+- Reconnect : 인터넷 연결이 끊어졌다가 다시 연결 될 때
+- Interval : 특정 시간을 주기로
 
-- 2번 단계
-- 데이터가 최신 상태, 즉 신선한 상태임.
-- 지금 불러온 데이터이므로, 신선한 Fresh 상태 라고 함.
-- 일정한 시간이 지나면 `Stale 상태` 로 됨.
+## 7. 데이터캐싱 inactive 와 deleted 상태
 
-### 3.3. Stale 상태
+- 전제 조건이 다른 화면에 있을 때
+- 컴포넌트가 unMount 가 된 경우 진행됨
 
-- 3번 단계
-- 데이터를 불러온지 오랜 시간이 지나서 유통기한이 지난 상태 라고 생각하면 편함
-- 오래된 캐시 데이터임. 갱신이 필요함.
-- 유통기한을 지정하고 싶다. (`staleTime` 옵션)
-- staleTime 이 `글로벌로는 0` 으로 세팅됨
-- staleTime 이 `개별로` 세팅도 가능함
+### 7.1. inactive 상태
 
-### 3.4. Inactive 상태
+- 전제 조건은 `다른 화면에 있을 때` 임 (위 내용과 동일)
 
-- 4번 단계
-- 리액트 컴포넌트가 화면에 안보이고 있을 때(unMount 상태) Inactive 상태가 됨.
-- 가비지컬렉션 타임 (지시타임) : gcTime
-- gcTime 이 `글로벌로는 30분` 으로 세팅됨
-- gcTime 이 `개별로` 세팅도 가능함
-- gcTime 이 지나면 delete 상태가 됨. (메모리 절약 가능)
+- fresh 상태에서 inactive 상태 가능
+- stale 상태에서 inactive 상태 가능
+- gcTime 값이 안지나면 계속 inactive 상태
 
-### 3.5. Deleted 상태
+### 7.2. deleted 상태
 
-- 5번 단계
-- 캐시 메모리 지워서 성능을 올려줌
+- 전제 조건이 다른 화면에 있을 때
+- gcTime 값이 지나면 자동으로 deleted 시켜버림
 
-## 4. `언제 새로 데이터를 가지고 오는가 ?`
+- /src/hooks/todos/queries/useTodoDataById.ts
 
-- 리패칭은 `stale 상태` 에서 실행됨
-- `Refetching` 이라고 함
-- `총 4가지 경우에 리패칭` 이 일어남
+```ts
+import { fetchTodoById } from '@/apis/todo';
+import { useQuery } from '@tanstack/react-query';
 
-### 4.1. Mount
+export const useTodoDataById = (id: number) => {
+  return useQuery({
+    queryKey: ['todo', id],
+    queryFn: () => fetchTodoById(id),
 
-- 캐시 데이터를 사용하는 컴포넌트가 화면에 보일 때 (Mount 될 때)
+    // 5초동안 fresh 유효기간
+    staleTime: 5000,
 
-### 4.2. WindowFocus
+    // 10 초동안 inactive 유효기간
+    gcTime: 10000,
+  });
+};
+```
 
-- 사용자가 다른 탭에 갔다가 다시 원래의 탭을 선택할 때
+## 8. 모든 옵션은 글로벌, 개별 설정 가능
 
-### 4.3. Reconnect
+- 우선은 글로벌 적용되고, 개별 설정이 적용됨.
+- 추천하는 글로벌 세팅
+- `/src/components/providers/QueryProvider.tsx`
 
-- 인터넷이 끊겼다가 다시 연결 될 때 (전제조건은 stale 한 상태여야함.)
+```tsx
+/*
+QueryClient 를 App 전체에 제공함
+- 모든 하위 컴포넌트에서 useQuery, useMutaion 등의 훅을 사용할 수있게함
+ **/
+'use client';
 
-### 4.4. Interval
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools/production';
+import { useState } from 'react';
 
-- 우리가 설정한 일정한 시간 간격으로 리패칭함
+export default function QueryProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // React 라면 아래 설정은 달라집니다.
+  // 현재 Next.js 에다가 셋팅을 진행함.
+  // 서버 사이드 렌더링을 위한 QueryClient 인스턴스 생성
+  // 각 요청마다 새로운 QueryClient 를 생성하여 상태 구분함.
+  const [client, setClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 0,
+            gcTime: 5 * 60 * 1000, // 5분
+            refetchOnMount: true, // 마운트 시점에 리패칭 On
+            refetchOnWindowFocus: false, // 윈도우 포커스 시점에 리패칭 끄기
+            refetchOnReconnect: false, // 리커넥트 시점에 리패칭 끄기
+            refetchInterval: false, // interval 리패칭 끄기
+          },
+        },
+      })
+  );
 
+  return (
+    <QueryClientProvider client={client}>
+      {children}
+      {/* npm run dev 상태에서만 개발자 도구 보기 */}
+      {process.env.NODE_ENV === 'development' && (
+        <ReactQueryDevtools
+          initialIsOpen={false}
+          buttonPosition='bottom-right'
+        />
+      )}
+    </QueryClientProvider>
+  );
+}
+```
