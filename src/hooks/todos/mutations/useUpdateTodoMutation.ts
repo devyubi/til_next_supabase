@@ -8,42 +8,33 @@ export function useUpdateTodoMutation() {
   return useMutation({
     mutationFn: updateTodo,
     onMutate: async updatedTodo => {
-      // 요청 취소 기능 구현
-      await queryClient.cancelQueries({ queryKey: QUERY_KEYS.todo.list });
-
-      // 원본 데이터를 보관함.
-      const originTodos = queryClient.getQueryData<Todo[]>(
-        QUERY_KEYS.todo.list
+      // 하나만 업데이트 하기
+      await queryClient.cancelQueries({
+        queryKey: QUERY_KEYS.todo.detail(updatedTodo.id.toString()),
+      });
+      const prevTodo = queryClient.getQueryData<Todo>(
+        QUERY_KEYS.todo.detail(updatedTodo.id.toString())
+      );
+      // 업데이트 된 데이터만 반영해줌
+      queryClient.setQueryData<Todo>(
+        QUERY_KEYS.todo.detail(updatedTodo.id.toString()),
+        prevTodo => {
+          if (!prevTodo) return;
+          return { ...prevTodo, ...updatedTodo };
+        }
       );
 
-      // 낙관적 업데이트 진행함.
-      queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.list, prevTodos => {
-        if (!prevTodos) return [];
-        return prevTodos.map(todo =>
-          todo.id === updatedTodo.id ? { ...todo, ...updatedTodo } : todo
-        );
-      });
-
-      // 원상 복구할 데이터를 리턴해 준다.
-      return { originTodos };
+      return { prevTodo };
     },
     // 에러가 발생함
     onError: (error, valiable, context) => {
-      console.log(error);
-
-      if (context?.originTodos) {
-        queryClient.setQueryData<Todo[]>(
-          QUERY_KEYS.todo.list,
-          context.originTodos
+      if (context?.prevTodo) {
+        queryClient.setQueryData<Todo>(
+          QUERY_KEYS.todo.detail(context.prevTodo.id.toString()),
+          context.prevTodo
         );
       }
-
       return { error };
-    },
-    // 요청이 완료됨
-    onSettled: () => {
-      // 검증 과정
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.list });
     },
   });
 }
