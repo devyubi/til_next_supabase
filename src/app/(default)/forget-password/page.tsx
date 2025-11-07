@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 export default function ForgetPassword() {
   // 컴포넌트 state
   const [email, setEmail] = useState('');
-  // mutation 활용하기
+  // mutation 실행하기
   const { mutate, isPending } = useRequestPasswordResetEmail({
     onSuccess: () => {
       toast.info('인증 메일이 잘 발송되었습니다.', {

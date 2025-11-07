@@ -24,10 +24,10 @@ export default function QueryProvider({
           queries: {
             staleTime: 0,
             gcTime: 5 * 60 * 1000, // 5분
-            refetchOnMount: true, // 마운트 시점에 리패칭 On
-            refetchOnWindowFocus: false, // 윈도우 포커스 시점에 리패칭 끄기
-            refetchOnReconnect: false, // 리커넥트 시점에 리패칭 끄기
-            refetchInterval: false, // interval 리패칭 끄기
+            refetchOnMount: true,
+            refetchOnWindowFocus: true,
+            refetchOnReconnect: false,
+            refetchInterval: false,
           },
         },
       })

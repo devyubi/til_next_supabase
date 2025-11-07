@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSignUp } from '@/hooks/mutations/useSignUp';
 import { getErrorMessage } from '@/lib/error';
+import { error } from 'console';
 import Link from 'next/link';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -14,7 +15,7 @@ function SignUp() {
 
   // Mutation Hook 활용하기
   // 1. 이메일 mutation 훅
-  const { mutate, isPending, isError } = useSignUp({
+  const { mutate, isPending } = useSignUp({
     onError: error => {
       const message = getErrorMessage(error);
       toast.error(message, { position: 'top-center' });
@@ -26,12 +27,8 @@ function SignUp() {
     if (!email.trim()) return;
     if (!password.trim()) return;
     // supabase 회원가입 처리 코드
-    mutate({ email, password });
+    mutate({ email: email, password: password });
   };
-
-  if (isError) {
-    return <div>회원가입 Error 입니다.</div>;
-  }
 
   return (
     <div className='flex flex-col gap-8'>
@@ -64,7 +61,7 @@ function SignUp() {
       <div>
         <Link
           href={'/signin'}
-          className='text-muted-foreground hover:text-gray-300 cursor-pointer'
+          className='text-muted-foreground hover:underline'
         >
           이미 계정이 있다면? 로그인
         </Link>

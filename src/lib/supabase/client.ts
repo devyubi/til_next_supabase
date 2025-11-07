@@ -10,4 +10,3 @@ export const createClient = () =>
 // 외부 클라이언트 컴포넌트에서 자유롭게 사용하도록 설정
 const supabase = createClient();
 export default supabase;
-

@@ -1,5 +1,5 @@
 import supabase from '@/lib/supabase/client';
-import type { Provider } from '@supabase/auth-js'; // 직접 타이핑
+import type { Provider } from '@supabase/auth-js';
 
 // supabase 백엔드에 사용자 이메일 회원가입
 export async function signUpWithEmail({
@@ -11,6 +11,7 @@ export async function signUpWithEmail({
 }) {
   // 웹브라우저를 이용해서 이메일 회원가입
   const { data, error } = await supabase.auth.signUp({ email, password });
+
   if (error) throw error;
 
   return data;
@@ -29,8 +30,10 @@ export async function signInWithPassword({
     email,
     password,
   });
+
   // 이 부분이 에러의 대한 정보를 가지고 있음.
   if (error) throw error;
+
   return data;
 }
 

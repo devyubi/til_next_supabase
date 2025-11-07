@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 // 이미지 가져오기
-const logo = '/assets/inu.png';
+const logo = '/assets/logo.png';
 const defaultAvatar = '/assets/icons/default-avatar.jpg';
 
 export default function RootLayout({
@@ -40,6 +40,7 @@ export default function RootLayout({
         <div className='flex min-h-[100vh] flex-col'>
           {/* 컴포넌트 배치 */}
           <ToastProvider />
+
           <QueryProvider>
             <SessionProvider>
               <header className='h-15 border-b'>
@@ -72,8 +73,8 @@ export default function RootLayout({
                 {children}
               </main>
               <footer className='text-muted-foreground border-t py-10 text-center'>
-                @dev.munyubi
-              </footer>{' '}
+                @devgeact
+              </footer>
             </SessionProvider>
           </QueryProvider>
         </div>

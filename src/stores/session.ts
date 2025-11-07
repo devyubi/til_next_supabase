@@ -26,21 +26,18 @@ const useSessionStore = create(
     { name: 'sessionStore' }
   )
 );
-
 // session 정보
 export const useSession = () => {
   // Selector 함수는 Store 에서 원하는 것을 선택해서 리턴한다.
   const session = useSessionStore(store => store.session);
   return session;
 };
-
 // loading 정보
 export const useSessionLoaded = () => {
   // Selector 함수는 Store 에서 원하는 것을 선택해서 리턴한다.
   const isSessionLoaded = useSessionStore(store => store.isLoading);
   return isSessionLoaded;
 };
-
 // sesstion 보관 액션
 export const useSetSession = () => {
   // Selector 함수는 Store 에서 원하는 것을 선택해서 리턴한다.

@@ -1,24 +1,322 @@
-# 데이터 캐싱 실습
+# 캐싱 데이터 무효화하기
 
-## 1. 상세 페이지
+- 보관하고 있는 캐시된 데이터를 특정 시점에 무효화가 가능해야함.
+- 특정시점 : `데이터를 추가하거나 수정하는 경우`
+- Mutation 이 진행되는 시점에 onSuccess 된 경우에 필요함.
+- onSuccess 이벤트 핸들러에서 캐시 데이터를 수정하고 즉시 렌더링 하도록 구성
 
-- `/src/app/todo-detail 폴더` 생성
-- `/src/app/todo-detail/[id] 폴더` 생성
-- `/src/app/todo-detail/[id]/page.tsx 파일` 생성
+## 1. Mutation 을 위한 API 를 생성함.
 
-```tsx
-type TodoDetailPage = {
-  params: Promise<{ id: number }>;
-};
+- `/src/apis/todo.ts` 업데이트
 
-export default async function TodoDetailPage({ params }: TodoDetailPage) {
-  const { id } = await params;
-  return <div>{id} : 상세페이지</div>;
+```ts
+// 새로운 할일 등록 API
+export async function createTodo(title: string) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_APP_URL_DEMO}/todos`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }
+  );
+  if (!response.ok) throw new Error('Failed to create todo');
+  const data: Todo = await response.json();
+  return data;
 }
 ```
 
-## 2. 링크 걸기
+## 2. hooks 만들기
 
+- `/src/hooks/todos/mutations 폴더` 생성
+- `/src/hooks/todos/mutations/useCreateMutation.ts 파일` 생성
+
+```ts
+import { createTodo } from '@/apis/todo';
+import { useMutation } from '@tanstack/react-query';
+
+export default function useCreateMutation() {
+  return useMutation({
+    mutationFn: createTodo,
+    onError: error => {
+      console.log(error);
+    },
+    onSuccess: () => {
+      // 새로운 데이터가 들어왔으니 처음부터 다시 데이터 리셋
+      window.location.reload();
+    },
+  });
+}
+```
+
+## 3. 효율적인 캐시된 데이터 무효화하기
+
+- `window.loaction.reload()` 효율적이지 않은 방안
+
+### 3.1. queryClient 를 활용해서 데이터 무효화 하기
+
+```ts
+import { createTodo } from '@/apis/todo';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+export default function useCreateMutation() {
+  // 1. 전역으로 생성해둔 React Query 의 상태관리를 활용한다.
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createTodo,
+    onError: error => {
+      console.log(error);
+    },
+    onSuccess: () => {
+      // 새로운 데이터가 들어왔으니 처음부터 다시 데이터 리셋
+      // window.location.reload();
+
+      // 2. 아래 코드는 데이터를 무효화시켜서 리패칭을 실행한다.
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    },
+  });
+}
+```
+
+### 3.2. 쿼리의 키를 자동으로 관리해 주는 방식을 도입하자.
+
+- 쿼리키를 여러 곳에서 작성하면 문제(오타, 잘못된 키 등)가 발생할 소지가 높다.
+- `쿼리키 팩토링 방식` 을 실무에서는 선호함.
+- 쿼리키를 상수화 시켜서 재활용하는 것을 말함.
+- `/src/lib/constants.ts 파일` 생성
+
+```ts
+// 쿼리키 팩토링 상수
+export const QUERY_KEYS = {
+  todo: {
+    all: ['todos'],
+    list: ['todos', 'list'],
+    detail: (id: string) => ['todos', 'deatail', id],
+  },
+};
+```
+
+### 3.3. QUERY_KEYS 활용하여 관리하기
+
+```ts
+import { createTodo } from '@/apis/todo';
+import { QUERY_KEYS } from '@/lib/constants';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+export default function useCreateMutation() {
+  // 1. 전역으로 생성해둔 React Query 의 상태관리를 활용한다.
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createTodo,
+    onError: error => {
+      console.log(error);
+    },
+    onSuccess: () => {
+      // 새로운 데이터가 들어왔으니 처음부터 다시 데이터 리셋
+      // window.location.reload();
+
+      // 2. 아래 코드는 데이터를 무효화시켜서 리패칭을 실행한다.
+      // 3. QUERY_KEYS 로 적용
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+    },
+  });
+}
+```
+
+```ts
+import { fetchTodos } from '@/apis/todo';
+import { QUERY_KEYS } from '@/lib/constants';
+import { useQuery } from '@tanstack/react-query';
+
+export function useFetchTodos() {
+  return useQuery({
+    queryKey: QUERY_KEYS.todo.list,
+    queryFn: fetchTodos,
+  });
+}
+```
+
+```ts
+import { useQuery } from '@tanstack/react-query';
+
+export function useTodoDataById(id: number) {
+  return useQuery({
+    queryKey: QUERY_KEYS.todo.detail(id.toString()),
+    queryFn: () => fetchTodoById(id),
+    staleTime: 5000, // 5초 동안 fresh 유효기간
+    gcTime: 10000, // 10초 동안 inactive 상태 지정
+  });
+}
+```
+
+## 4. 전체를 다시 불러들이는 방식 개선
+
+### 4.1. 문제점
+
+- `queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });`
+- 위의 경우에 너무 많은 데이터를 불러오는 경우에는 조금 고민을 하자.
+- 서버에 부하가 되고, 성능상 좋지 않다.
+- Mutaion 에 onSuccess 에 전달되어지는 데이터를 활용하기를 권장함.
+- 아래의 API 에서는 성공시 data 를 return 받도록 구성됨.
+
+```ts
+// 새로운 할일 등록 API
+export async function createTodo(title: string) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_APP_URL_DEMO}/todos`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }
+  );
+  if (!response.ok) throw new Error('Failed to create todo');
+  const data: Todo = await response.json();
+  return data;
+}
+```
+
+### 4.2. 해결 과정
+
+- API 호출 후 `return 결과`는 `onSuccess 로 전달`됨.
+
+- 1 단계.
+
+```ts
+onSuccess: (API 실행 후 리턴받은 데이터) => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+},
+```
+
+- 2 단계.
+
+```ts
+onSuccess: data => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+  queryClient.setQueryData();
+},
+```
+
+- 3 단계. `Todo 타입의 배열`이므로
+
+```ts
+onSuccess: data => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+  queryClient.setQueryData<Todo[]>();
+},
+```
+
+- 4 단계. `매개변수1, 매개변수2`이므로
+
+```ts
+onSuccess: data => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+  queryClient.setQueryData<Todo[]> (수정할 캐시 데이터 키값, 화살표함수 );
+},
+```
+
+- 5 단계. `쿼리 키 적용`
+
+```ts
+onSuccess: data => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+  queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.all, 화살표함수);
+},
+```
+
+- 6 단계. `화살표함수 적용`
+
+```ts
+onSuccess: data => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+  queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.all, () => {});
+},
+```
+
+- 7 단계. `화살표함수 매개변수 적용`
+
+```ts
+onSuccess: data => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+  queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.all, (키값을 갖는 기존 캐시데이터) => {});
+},
+```
+
+- 8 단계. `새로운 캐시 데이터 리턴`
+
+```ts
+onSuccess: data => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+  queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.all, prevTodos => {
+    // 반환될 업데이트한 캐시 데이터를 리턴
+  });
+},
+```
+
+- 9 단계.
+
+```ts
+onSuccess: data => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+  queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.all, prevTodos => {
+    // 반환될 업데이트한 캐시 데이터를 리턴
+    if (!prevTodos) return [data];
+    return [...기존캐시데이터, data];
+  });
+},
+```
+
+- 10 단계.
+
+```ts
+onSuccess: data => {
+  // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+  queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.all, prevTodos => {
+    // 반환될 업데이트한 캐시 데이터를 리턴
+    if (!prevTodos) return [data];
+    return [...prevTodos, data];
+  });
+},
+```
+
+### 4.3. 최종 코드
+
+```ts
+import { createTodo } from '@/apis/todo';
+import { QUERY_KEYS } from '@/lib/constants';
+import { Todo } from '@/types/todo-type';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+export default function useCreateMutation() {
+  // 1. 전역으로 생성해둔 React Query 의 상태관리를 활용한다.
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: createTodo,
+    onError: error => {
+      console.log(error);
+    },
+    onSuccess: data => {
+      // queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todo.all });
+      queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.all, prevTodos => {
+        // 반환될 업데이트한 캐시 데이터를 리턴
+        if (!prevTodos) return [data];
+        return [...prevTodos, data];
+      });
+    },
+  });
+}
+```
+
+## 5. Optimistic Updates (낙관적 업데이트)
+
+- `성공적으로 데이터의 수정 요청이 될것이라고 미리 판단` 해서 업데이트함.
+- 네트워크 요청이 성공하기도 전에 그냥 성공을 가정하고 반영해줌.
+- UI 상 많은 서비스가 이런 형태로 제공됨.
+
+### 5.1. completed 토글에 적용하기
+
+- 할일의 토글 상태를 표시에 적용해 봄.
 - `/src/components/todo/TodoItem.tsx` 업데이트
 
 ```tsx
@@ -37,8 +335,10 @@ export default function TodoItem({
 
   return (
     <div className='flex items-center justify-between border p-2'>
-      {/* 링크걸기 */}
-      <Link href={`/todo-detail/${id}`}>{content}</Link>
+      <div className='flex gap-5'>
+        <input type={'checkbox'} />
+        <Link href={`/todo-detail/${id}`}>{content}</Link>
+      </div>
 
       <Button onClick={handleDeleteClick} variant={'destructive'}>
         삭제
@@ -48,232 +348,272 @@ export default function TodoItem({
 }
 ```
 
-## 3. API 만들기
+### 5.2. 이벤트 연결하기
 
-- `/src/apis/todos.ts` : api 추가 업데이트
+```tsx
+'use client';
+import Link from 'next/link';
+import { Button } from '../ui/button';
+
+export default function TodoItem({
+  id,
+  content,
+}: {
+  id: number;
+  content: string;
+}) {
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log(e.target.checked);
+  };
+
+  const handleDeleteClick = () => {};
+
+  return (
+    <div className='flex items-center justify-between border p-2'>
+      <div className='flex gap-5'>
+        <input type={'checkbox'} onChange={handleCheckboxChange} />
+        <Link href={`/todo-detail/${id}`}>{content}</Link>
+      </div>
+
+      <Button onClick={handleDeleteClick} variant={'destructive'}>
+        삭제
+      </Button>
+    </div>
+  );
+}
+```
+
+### 5.3. checked 에 completed 값 연결하기
+
+- `/src/app/todo-list/page.tsx` 업데이트
+
+```tsx
+{
+  todos.map(item => (
+    <TodoItem
+      key={item.id}
+      id={item.id}
+      title={item.title}
+      userId={item.userId}
+      completed={item.completed}
+    />
+  ));
+}
+```
+
+- `/src/components/todo/TodoItem.tsx` 업데이트
+
+```tsx
+'use client';
+import Link from 'next/link';
+import { Button } from '../ui/button';
+import { Todo } from '@/types/todo-type';
+
+export default function TodoItem({ id, title, completed, userId }: Todo) {
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log(e.target.checked);
+  };
+
+  const handleDeleteClick = () => {};
+
+  return (
+    <div className='flex items-center justify-between border p-2'>
+      <div className='flex gap-5'>
+        <input
+          type={'checkbox'}
+          checked={completed}
+          onChange={handleCheckboxChange}
+        />
+        <Link href={`/todo-detail/${id}`}>{title}</Link>
+      </div>
+
+      <Button onClick={handleDeleteClick} variant={'destructive'}>
+        삭제
+      </Button>
+    </div>
+  );
+}
+```
+
+### 5.4. api 만들기 (할일 항목 업데이트 API)
+
+- `/src/apis/todo.ts` api 추가
 
 ```ts
-// API 함수로 1개의 id 를 전달 받아서 상세 내용 불러들이기 기능
-export async function fetchTodoById(id: number) {
+// 할일 업데이트 API
+export async function updateTodo(todo: Partial<Todo> & { id: number }) {
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL_DEMO}/todos/${id}`
+    `${process.env.NEXT_PUBLIC_APP_URL_DEMO}/todos/${todo.id}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(todo),
+    }
   );
-  if (!response.ok) throw new Error('상세 데이터가 없습니다.');
+  if (!response.ok) throw new Error('Failed to update todo');
   const data: Todo = await response.json();
   return data;
 }
 ```
 
-## 4. query hook 만들기
+### 5.5. hook 만들기
 
-- `/src/hooks/todos/queries/useTodoDataById.ts 파일` 생성
+- `/src/hooks/todos/mutations/useUpdateTodoMutation.ts 파일` 생성
 
 ```ts
-import { fetchTodoById } from '@/apis/todo';
-import { useQuery } from '@tanstack/react-query';
+import { updateTodo } from '@/apis/todo';
+import { useMutation } from '@tanstack/react-query';
 
-export function useTodoDataById(id: number) {
-  return useQuery({
-    queryKey: ['todos', id],
-    queryFn: () => fetchTodoById(id),
+export function useUpdateTodoMutation() {
+  return useMutation({
+    mutationFn: updateTodo,
   });
 }
 ```
 
-## 5. 활용하기
+### 5.6. 활용하기
 
-- `/src/components/todo/TodoDetail.tsx 파일` 생성
+- `/src/components/todo/TodoItem.tsx` 업데이트
+
+```tsx
+// hook 활용하기
+const { mutate: updateTodo } = useUpdateTodoMutation();
+
+const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // console.log(e.target.checked);
+  updateTodo({ id, completed: !completed });
+};
+```
+
+### 5.7. 전체 코드
 
 ```tsx
 'use client';
+import Link from 'next/link';
+import { Button } from '../ui/button';
+import { Todo } from '@/types/todo-type';
+import { useUpdateTodoMutation } from '@/hooks/todos/mutations/useUpdateTodoMutation';
 
-import { useTodoDataById } from '@/hooks/todos/queries/useTodoDataById';
+export default function TodoItem({ id, title, completed, userId }: Todo) {
+  // hook 활용하기
+  const { mutate: updateTodo } = useUpdateTodoMutation();
 
-type TodoDetailProps = {
-  id: number;
-};
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // console.log(e.target.checked);
+    updateTodo({ id, completed: !completed });
+  };
 
-const TodoDetail = ({ id }: TodoDetailProps) => {
-  const { data, isLoading, error } = useTodoDataById(id);
-  if (isLoading) return <div>로딩 중 ...</div>;
-  if (error) return <div>Error. {error.message}</div>;
-  if (!data) return <div>자료가 존재하지 않습니다.</div>;
-
-  return <div>TodoDetail : {data.title}</div>;
-};
-
-export default TodoDetail;
-```
-
-- `/src/app/todo-detail/[id]/page.tsx` 업데이트
-
-```tsx
-import TodoDetail from '@/components/todo/TodoDetail';
-
-type TodoDetailPage = {
-  params: Promise<{ id: number }>;
-};
-
-export default async function TodoDetailPage({ params }: TodoDetailPage) {
-  const { id } = await params;
-  return <TodoDetail id={id} />;
-}
-```
-
-## 6. 데이터캐싱 확인해보기
-
-- Devtools 를 활용
-- 처음에는 `stale` 상태이다.
-- 이유는 기본 `staleTime` 이 `0` 으로 글로벌 셋팅되어있다.
-- 컴포넌트가 화면에 Mount 가 되면 `stale` 상태면 `Refetching` 으로 데이터 호출함
-- 웹브라우저의 WindowFocus가 되면 `stale` 상태면 `Refetching` 으로 데이터 호출함
-- 네트워크가 끊겼다가 연결(Reconnect) 되면 `stale` 상태면 `Refetching` 으로 데이터 호출함
-- 옵션으로 refetchInterval 를 초 단위로 지정하게되면, `stale` 상태라면 `Refetching` 으로
-
-### 6.1. refetching 끄기 옵션
-
-- /src/hooks/todos/queries/useTodoDataById.ts
-
-```ts
-import { fetchTodoById } from '@/apis/todo';
-import { useQuery } from '@tanstack/react-query';
-
-export function useTodoDataById(id: number) {
-  return useQuery({
-    queryKey: ['todos', id],
-    queryFn: () => fetchTodoById(id),
-    // 1초마다 리패칭
-    // refetchInterval : 1000,
-    refetchOnMount: false, // 마운트 시점에 리패칭 끄기
-    refetchOnWindowFocus: false, // 윈도우 포커스 시점에 리패칭 끄기
-    refetchOnReconnect: false, // 리커넥트 시점에 리패칭 끄기
-    refetchInterval: false, // interval 리패칭 끄기
-  });
-}
-```
-
-### 6.2. staleTime 옵션 이해하기
-
-- /src/hooks/todos/queries/useTodoDataById.ts
-
-```ts
-import { fetchTodoById } from '@/apis/todo';
-import { useQuery } from '@tanstack/react-query';
-
-export function useTodoDataById(id: number) {
-  return useQuery({
-    queryKey: ['todos', id],
-    queryFn: () => fetchTodoById(id),
-    // 5초동안 fresh 유효기간
-    staleTime: 5000,
-  });
-}
-```
-
-- stale 한 데이터의 역할은 일단 화면에 내용을 빠르게 출력을 해주는 역할
-- refetching 이 끝나면, 새로운 데이터를 출력시켜줌
-- 일단 캐싱된 데이터를 사용해서 빠르게 화면을 렌더링하고, 최신 데이터를 불러오는 리패칭 과정이 마무리 되면 그때 교체하는 방식임.
-
-### 6.3. Refetching 4가지
-
-- 전제 조건은 해당하는 캐시 데이터가 `stale` 상태일 때 아래 실행됨.
-
-- Mount : 해당하는 캐시 데이터를 사용하는 컴포넌트가 마운트 될 때
-- WindowFocus : 사용자가 현재 탭으로 돌아올 때
-- Reconnect : 인터넷 연결이 끊어졌다가 다시 연결 될 때
-- Interval : 특정 시간을 주기로
-
-## 7. 데이터캐싱 inactive 와 deleted 상태
-
-- 전제 조건이 다른 화면에 있을 때
-- 컴포넌트가 unMount 가 된 경우 진행됨
-
-### 7.1. inactive 상태
-
-- 전제 조건은 `다른 화면에 있을 때` 임 (위 내용과 동일)
-
-- fresh 상태에서 inactive 상태 가능
-- stale 상태에서 inactive 상태 가능
-- gcTime 값이 안지나면 계속 inactive 상태
-
-### 7.2. deleted 상태
-
-- 전제 조건이 다른 화면에 있을 때
-- gcTime 값이 지나면 자동으로 deleted 시켜버림
-
-- /src/hooks/todos/queries/useTodoDataById.ts
-
-```ts
-import { fetchTodoById } from '@/apis/todo';
-import { useQuery } from '@tanstack/react-query';
-
-export const useTodoDataById = (id: number) => {
-  return useQuery({
-    queryKey: ['todo', id],
-    queryFn: () => fetchTodoById(id),
-
-    // 5초동안 fresh 유효기간
-    staleTime: 5000,
-
-    // 10 초동안 inactive 유효기간
-    gcTime: 10000,
-  });
-};
-```
-
-## 8. 모든 옵션은 글로벌, 개별 설정 가능
-
-- 우선은 글로벌 적용되고, 개별 설정이 적용됨.
-- 추천하는 글로벌 세팅
-- `/src/components/providers/QueryProvider.tsx`
-
-```tsx
-/*
-QueryClient 를 App 전체에 제공함
-- 모든 하위 컴포넌트에서 useQuery, useMutaion 등의 훅을 사용할 수있게함
- **/
-'use client';
-
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools/production';
-import { useState } from 'react';
-
-export default function QueryProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // React 라면 아래 설정은 달라집니다.
-  // 현재 Next.js 에다가 셋팅을 진행함.
-  // 서버 사이드 렌더링을 위한 QueryClient 인스턴스 생성
-  // 각 요청마다 새로운 QueryClient 를 생성하여 상태 구분함.
-  const [client, setClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 0,
-            gcTime: 5 * 60 * 1000, // 5분
-            refetchOnMount: true, // 마운트 시점에 리패칭 On
-            refetchOnWindowFocus: false, // 윈도우 포커스 시점에 리패칭 끄기
-            refetchOnReconnect: false, // 리커넥트 시점에 리패칭 끄기
-            refetchInterval: false, // interval 리패칭 끄기
-          },
-        },
-      })
-  );
+  const handleDeleteClick = () => {};
 
   return (
-    <QueryClientProvider client={client}>
-      {children}
-      {/* npm run dev 상태에서만 개발자 도구 보기 */}
-      {process.env.NODE_ENV === 'development' && (
-        <ReactQueryDevtools
-          initialIsOpen={false}
-          buttonPosition='bottom-right'
+    <div className='flex items-center justify-between border p-2'>
+      <div className='flex gap-5'>
+        <input
+          type={'checkbox'}
+          checked={completed}
+          onChange={handleCheckboxChange}
         />
-      )}
-    </QueryClientProvider>
+        <Link href={`/todo-detail/${id}`}>{title}</Link>
+      </div>
+
+      <Button onClick={handleDeleteClick} variant={'destructive'}>
+        삭제
+      </Button>
+    </div>
   );
 }
 ```
+
+## 6. 낙관적 업데이트 적용하기
+
+- 즉시 요청이 성공할 것이라고 가정하고 체크박스를 바로 변경적용
+- mutate 함수가 실행되면 캐시 데이터를 즉시 업데이트 함.
+
+### 6.1. 단계들
+
+- 1 단계.
+
+```ts
+import { updateTodo } from '@/apis/todo';
+import { useMutation } from '@tanstack/react-query';
+
+export function useUpdateTodoMutation() {
+  return useMutation({
+    mutationFn: updateTodo,
+    // mutate 함수가 실행되는 시점에 작성
+    onMutate: ( 매개변수로 mutate함수의 재료가 전달됨 ) => {}
+
+  });
+}
+```
+
+- 2 단계.
+
+```ts
+import { updateTodo } from '@/apis/todo';
+import { useMutation } from '@tanstack/react-query';
+
+export function useUpdateTodoMutation() {
+  return useMutation({
+    mutationFn: updateTodo,
+    // mutate 함수가 실행되는 시점에 작성
+    onMutate: updatedTodo => {
+      // 캐시 데이터를 업데이트 기능 작성
+    },
+  });
+}
+```
+
+- 3 단계.
+
+```tsx
+import { updateTodo } from '@/apis/todo';
+import { QUERY_KEYS } from '@/lib/constants';
+import { Todo } from '@/types/todo-type';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+export function useUpdateTodoMutation() {
+  // 1. 전역 접근용 변수
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateTodo,
+    // mutate 함수가 실행되는 시점에 작성
+    onMutate: updatedTodo => {
+      // 캐시 데이터를 업데이트 기능 작성
+      // 2. 데이터 일부만 수정함.
+      queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.list, () => {});
+    },
+  });
+}
+```
+
+- 4 단계.
+
+```ts
+import { updateTodo } from '@/apis/todo';
+import { QUERY_KEYS } from '@/lib/constants';
+import { Todo } from '@/types/todo-type';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
+export function useUpdateTodoMutation() {
+  // 1. 전역 접근용 변수
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateTodo,
+    // mutate 함수가 실행되는 시점에 작성
+    onMutate: updatedTodo => {
+      // 캐시 데이터를 업데이트 기능 작성
+      // 2. 데이터 일부만 수정함.
+      queryClient.setQueryData<Todo[]>(QUERY_KEYS.todo.list, prevTodos => {
+        if (!prevTodos) return [];
+        return prevTodos.map(todo =>
+          todo.id === updatedTodo.id ? { ...todo, ...updatedTodo } : todo
+        );
+      });
+    },
+  });
+}
+```
+
+- 테스트해 보면 체크박스는 체크되고, 네트워크는 나중에 처리됨을 파악함.
+
+## 7. 예외사항을 반드시 처리해야 합니다.

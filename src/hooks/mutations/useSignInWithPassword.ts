@@ -8,8 +8,6 @@ export function useSignInWithPassword(callback?: UseMutationCallback) {
     // 자동으로 error 전달받음
     onError: error => {
       console.error(error);
-
-      // 컴포넌트에서 전달받은 Error임. 위에꺼 아님
       if (callback?.onError) callback.onError(error);
     },
   });
