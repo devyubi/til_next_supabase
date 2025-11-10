@@ -424,6 +424,3 @@ useEffect(() => {
   textareaRef.current?.focus();
 }, [isOpen]);
 ```
-
-## 8. 포스트 등록 테스트 하기
-
