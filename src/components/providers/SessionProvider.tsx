@@ -3,6 +3,7 @@ import supabase from '@/lib/supabase/client';
 import { useSession, useSessionLoaded, useSetSession } from '@/stores/session';
 import { useEffect } from 'react';
 import { GlobalLoading } from '../GlobalLoading';
+import useProfileData from '@/hooks/queries/useProfileData';
 
 interface SessionProviderProps {
   children: React.ReactNode;
