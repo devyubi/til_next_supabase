@@ -1,426 +1,198 @@
-# Post
+# Post 이미지 등록하기
 
-## 1. Post 추가하기 버튼
+- Storage 설정 및 권한 설정
 
-- `/src/components/post 폴더` 생성
-- `/src/components/post/CreatePostButton.tsx 파일` 생성
+## 1. 시나리오
 
-```tsx
-import { PlusCircle } from 'lucide-react';
+### 1.1. 등록 과정
 
-export function CreatePostButton() {
-  return (
-    <div className='bg-muted text-muted-foreground cursor-pointer rounded-xl px-6 py-4'>
-      <div className='flex items-center justify-between'>
-        <div>새글을 등록하세요.</div>
-        <PlusCircle className='h-5 w-5' />
-      </div>
-    </div>
-  );
-}
-```
+- 포스트 등록 : 포스트의 ID 를 생성
+- 포스트 ID 를 전달하면서 사용자가 이미지를 업로드 하면 URL을 받아옴
+- 포스트 ID 에 해당하는 데이터를 업데이트함
+- 받아온 URL 을 posts 테이블에 등록함
 
-## 2. 페이지 추가하기
+### 1.2. 저장소 경로 규칙
 
-- `/src/app/(protected)/page.tsx` 추가
+- 사용자 ID / 포스트 ID / 파일들 저장
+- 사용자 탈퇴시 `사용자 ID 폴더` 삭제
+- 사용자 탈퇴시 `사용자 ID 폴더/포스트 ID 폴더` 삭제
 
-```tsx
-import { CreatePostButton } from '@/components/post/CreatePostButton';
+## 2. 이미지 업로드 UI 구현
 
-export default function Home() {
-  return (
-    <div className='flex flex-col gap-10'>
-      <CreatePostButton />
-    </div>
-  );
-}
-```
+- `/src/components/PostEditorModal.tsx` 업데이트
 
-## 3. 모달 만들기
-
-- `/src/components/modal 폴더` 만들기
-- `/src/components/modal/PostEditorModal.tsx` 만들기
+### 2.1. 기본 파일 선택 연결
 
 ```tsx
-import { ImageIcon } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-
-export default function PostEditorModal() {
-  return (
-    <Dialog>
-      <DialogContent>
-        <DialogTitle>포스트 작성</DialogTitle>
-        <textarea />
-        <Button>
-          <ImageIcon /> 이미지 추가
-        </Button>
-        <Button>저장</Button>
-      </DialogContent>
-    </Dialog>
-  );
+{
+  /* 이미지 선택 Input 태그 숨김 처리 */
 }
+<input type='file' accept='image/*' multiple className='hidden' />;
 ```
-
-## 4. 모달창 출력후 스타일 하기
-
-- `/src/components/post/CreatePostButton.tsx`
 
 ```tsx
-'use client';
-import { PlusCircle } from 'lucide-react';
-import PostEditorModal from '../modal/PostEditorModal';
-import { useState } from 'react';
-
-export function CreatePostButton() {
-  const [modalOpen, setModalOpen] = useState(false);
-  return (
-    <>
-      <div
-        onClick={() => setModalOpen(true)}
-        className='bg-muted text-muted-foreground cursor-pointer rounded-xl px-6 py-4'
-      >
-        <div className='flex items-center justify-between'>
-          <div>새글을 등록하세요.</div>
-          <PlusCircle className='h-5 w-5' />
-        </div>
-      </div>
-
-      <PostEditorModal isOpen={modalOpen} />
-    </>
-  );
-}
+// 이미지 Input 태그 참조
+const fileInputRef = useRef<HTMLInputElement>(null);
 ```
-
-- `/src/components/modal/PostEditorModal.tsx`
 
 ```tsx
-import { ImageIcon } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-
-export default function PostEditorModal({ isOpen }: { isOpen: boolean }) {
-  return (
-    <Dialog open={isOpen}>
-      <DialogContent className='max-h-[90vh]'>
-        <DialogTitle>포스트 작성</DialogTitle>
-        <textarea
-          className='max-h-125 min-h-25 focus:outline-none'
-          placeholder='새로운 글을 등록해주세요.'
-        />
-        <Button variant='outline' className='cursor-pointer'>
-          <ImageIcon /> 이미지 추가
-        </Button>
-        <Button className='cursor-pointer'>저장</Button>
-      </DialogContent>
-    </Dialog>
-  );
+{
+  /* 이미지 선택 Input 태그 숨김 처리 */
 }
+<input
+  ref={fileInputRef}
+  type='file'
+  accept='image/*'
+  multiple
+  className='hidden'
+/>;
 ```
-
-- CreatePostButton.tsx 다시 원복 시킴
 
 ```tsx
-'use client';
-import { PlusCircle } from 'lucide-react';
-
-export function CreatePostButton() {
-  return (
-    <div className='bg-muted text-muted-foreground cursor-pointer rounded-xl px-6 py-4'>
-      <div className='flex items-center justify-between'>
-        <div>새글을 등록하세요.</div>
-        <PlusCircle className='h-5 w-5' />
-      </div>
-    </div>
-  );
-}
+<Button
+  onClick={() => fileInputRef.current?.click()}
+  variant='outline'
+  className='cursor-pointer'
+>
+  <ImageIcon /> 이미지 추가
+</Button>
 ```
 
-## 5. zustand 로 modal 의 상태를 전역 관리하기
+### 2.2. 선택된 파일(이미지) 미리보기 배치
 
-### 5.1. store 만들기
+- 1 단계
 
-- `/src/stores/postEditorModalStore.ts 파일` 생성
-
-```ts
-import { create } from 'zustand';
-import { combine, devtools } from 'zustand/middleware';
-
-const initialState = {
-  isOpen: false,
-};
-
-// 단계가 중요함.
-// 미들웨어와 겹침을 주의하자.
-// Store 는 state 와 action 이 있다.
-const usePostEditorStore = create(
-  devtools(
-    combine(initialState, set => ({
-      actions: {
-        open: () => {
-          set({ isOpen: true });
-        },
-        close: () => {
-          set({ isOpen: false });
-        },
-      },
-    })),
-    { name: 'PostEditorStore' }
-  )
-);
-
-// 오로지 store 의 acitons 의  open 만 가져감
-export const useOpenPostEditorModal = () => {
-  const open = usePostEditorStore(store => store.actions.open);
-  return open;
-};
-// 미리 store 전체 내보기니
-export const usePostEdiotorModal = () => {
-  const {
-    isOpen,
-    actions: { open, close },
-  } = usePostEditorStore();
-  return { isOpen, open, close };
+```tsx
+type Image = {
+  file: File;
+  previewURL: string;
 };
 ```
 
-### 5.2. PostEditorModal 컴포넌트를 화면에 렌더링하기
-
-- 화면에 출력을 시키려면 누군가의 `children component (자식 컴포넌트)` 여야함
-- `/src/component/providers/ModalProvider.tsx 파일` 생성
-- 여기에서 새로운 `createPortal 문법` 을 살펴봄
+- 2 단계
 
 ```tsx
-'use client';
-
-import { ReactNode } from 'react';
-import { createPortal } from 'react-dom';
-import PostEditorModal from '../modal/PostEditorModal';
-
-export default function ModalProvider({ children }: { children: ReactNode }) {
-  return (
-    <>
-      {createPortal(
-        <PostEditorModal />,
-        document.getElementById('modal-root')!
-      )}
-      {children}
-    </>
-  );
-}
+// 이미지 미리보기 내용들
+const [images, setImages] = useState<Image[]>([]);
 ```
 
-### 5.3. 새로운 div 태그 만들기
-
-- `/src/app/layout.tsx` 업데이트
+- 3 단계
 
 ```tsx
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
-import './globals.css';
-import QueryProvider from '@/components/providers/QueryProvider';
-import Link from 'next/link';
-import Image from 'next/image';
-import { Sun } from 'lucide-react';
-import ToastProvider from '@/components/providers/ToastProvider';
-import SessionProvider from '@/components/providers/SessionProvider';
-import ModalProvider from '@/components/providers/ModalProvider';
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
-
-export const metadata: Metadata = {
-  title: 'Create Next App',
-  description: 'Generated by create next app',
+// 이미지들이 선택 되었을 때 실행할 핸들러
+const handleSelectImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+  if (e.target.files) {
+    // 객체로부터 배열을 반드는 Array.from
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      setImages(prev => [
+        ...prev,
+        { file, previewURL: URL.createObjectURL(file) },
+      ]);
+    });
+  }
+  // 초기화 시킴
+  e.target.value = '';
 };
+```
 
-// 이미지 가져오기
-const logo = '/assets/inu.png';
-const defaultAvatar = '/assets/icons/default-avatar.jpg';
+- 4 단계
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
-  return (
-    <html lang='ko'>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {/* Portal 용 div */}
-        <div id={'modal-root'} />
+```tsx
+{
+  /* 이미지 선택 Input 태그 숨김 처리 */
+}
+<input
+  onChange={handleSelectImages}
+  ref={fileInputRef}
+  type='file'
+  accept='image/*'
+  multiple
+  className='hidden'
+/>;
+```
 
-        <div className='flex min-h-[100vh] flex-col'>
-          {/* 컴포넌트 배치 */}
-          <ToastProvider />
+- 5 단계
 
-          <QueryProvider>
-            <SessionProvider>
-              <ModalProvider>
-                <header className='h-15 border-b'>
-                  <div className='m-auto flex h-full w-full max-w-175 justify-between px-4'>
-                    <Link href={'/'} className='flex items-center gap-2'>
-                      <Image
-                        src={logo}
-                        alt='SNS 서비스 로고'
-                        width={40}
-                        height={40}
-                      />
-                      <div className='font-bold'>SNS 서비스</div>
-                    </Link>
-
-                    <div className='flex items-center gap-5'>
-                      <div className='hover:bg-muted cursor-pointer rounded-full p-2'>
-                        <Sun />
-                      </div>
-                      <Image
-                        src={defaultAvatar}
-                        alt='기본 아바타'
-                        width={24}
-                        height={24}
-                        className='h-6'
-                      />
-                    </div>
-                  </div>
-                </header>
-                <main className='m-auto w-full max-w-175 flex-1 border-x px-4 py-6'>
-                  {children}
-                </main>
-                <footer className='text-muted-foreground border-t py-10 text-center'>
-                  @devgeact
-                </footer>
-              </ModalProvider>
-            </SessionProvider>
-          </QueryProvider>
-        </div>
-      </body>
-    </html>
+```tsx
+{
+  /* 이미지 미리보기 슬라이드 */
+}
+{
+  images.length > 0 && (
+    <Carousel>
+      <CarouselContent>
+        {images.map((img, index) => (
+          <CarouselItem key={index} className='basis-2/5'>
+            <img
+              src={img.previewURL}
+              className='w-full rounded-sm object-cover'
+            />
+          </CarouselItem>
+        ))}
+      </CarouselContent>
+    </Carousel>
   );
 }
 ```
 
-## 6. zustand Modal 적용하기
+### 2.3. 이미지 미리보기 삭제 기능
 
-- `/src/components/post/CreatePostButton.tsx` 업데이트
+- 1 단계
 
 ```tsx
-'use client';
-import { useOpenPostEditorModal } from '@/stores/postEditorModalStore';
-import { PlusCircle } from 'lucide-react';
+// 이미지가 제거될 때 실행될 핸들러
+const handleDeleteImage = (img: Image) => {
+  setImages(prevImg =>
+    prevImg.filter(item => item.previewURL != img.previewURL)
+  );
+};
+```
 
-export function CreatePostButton() {
-  const openPostEditorModal = useOpenPostEditorModal();
-  return (
-    <div
-      onClick={openPostEditorModal}
-      className='bg-muted text-muted-foreground cursor-pointer rounded-xl px-6 py-4'
-    >
-      <div className='flex items-center justify-between'>
-        <div>새글을 등록하세요.</div>
-        <PlusCircle className='h-5 w-5' />
-      </div>
-    </div>
+- 2 단계
+
+```tsx
+{
+  /* 이미지 미리보기 슬라이드 */
+}
+{
+  images.length > 0 && (
+    <Carousel>
+      <CarouselContent>
+        {images.map((img, index) => (
+          <CarouselItem key={index} className='basis-2/5'>
+            <div className='relative w-full h-48'>
+              <Image
+                src={img.previewURL}
+                alt='이미지 미리보기'
+                fill
+                unoptimized
+                className='w-full rounded-sm object-cover'
+              />
+              {/* 삭제 아이콘 및 기능 추가 */}
+              <div
+                onClick={() => handleDeleteImage(img)}
+                className='absolute top-0 right-0 m-1 cursor-pointer rounded-full bg-black/30 p-1'
+              >
+                <XIcon className='h-4 w-4 text-white' />
+              </div>
+            </div>
+          </CarouselItem>
+        ))}
+      </CarouselContent>
+    </Carousel>
   );
 }
 ```
 
-- `/src/components/modal/PostEditorModal.tsx` 업데이트
+- 3 단계
 
 ```tsx
-import { ImageIcon } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { usePostEdiotorModal } from '@/stores/postEditorModalStore';
-
-export default function PostEditorModal() {
-  const { isOpen, close } = usePostEdiotorModal();
-  const handleCloseModal = () => {
-    close();
-  };
-  return (
-    <Dialog open={isOpen} onOpenChange={handleCloseModal}>
-      <DialogContent className='max-h-[90vh]'>
-        <DialogTitle>포스트 작성</DialogTitle>
-        <textarea
-          className='max-h-125 min-h-25 focus:outline-none'
-          placeholder='새로운 글을 등록해주세요.'
-        />
-        <Button variant='outline' className='cursor-pointer'>
-          <ImageIcon /> 이미지 추가
-        </Button>
-        <Button className='cursor-pointer'>저장</Button>
-      </DialogContent>
-    </Dialog>
-  );
-}
-```
-
-## 7. 편의 기능 넣기
-
-### 7.1. 자동으로 내용 높이 창 변경하기
-
-`/src/components/modal/PostEditorModal.tsx`
-
-```tsx
-'use client';
-import { ImageIcon } from 'lucide-react';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { usePostEdiotorModal } from '@/stores/postEditorModalStore';
-import { useEffect, useRef, useState } from 'react';
-
-export default function PostEditorModal() {
-  const { isOpen, close } = usePostEdiotorModal();
-  // post 에 저장할 내용
-  const [content, setContent] = useState('');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [content]);
-
-  const handleCloseModal = () => {
-    close();
-  };
-  return (
-    <Dialog open={isOpen} onOpenChange={handleCloseModal}>
-      <DialogContent className='max-h-[90vh]'>
-        <DialogTitle>포스트 작성</DialogTitle>
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          className='max-h-125 min-h-25 focus:outline-none'
-          placeholder='새로운 글을 등록해주세요.'
-        />
-        <Button variant='outline' className='cursor-pointer'>
-          <ImageIcon /> 이미지 추가
-        </Button>
-        <Button className='cursor-pointer'>저장</Button>
-      </DialogContent>
-    </Dialog>
-  );
-}
-```
-
-### 7.2. 자동 포커스 및 내용 초기화 넣기
-
-- `/src/components/modal/PostEditorModal.tsx`
-
-```tsx
-// 자동 포커스 및 내용 초기화
+// 자동포커스 및 내용 초기화
 useEffect(() => {
   if (!isOpen) return;
   textareaRef.current?.focus();
+  setContent('');
+  setImages([]);
 }, [isOpen]);
 ```

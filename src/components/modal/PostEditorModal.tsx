@@ -1,15 +1,44 @@
 'use client';
-import { ImageIcon } from 'lucide-react';
+import { ImageIcon, XIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { usePostEdiotorModal } from '@/stores/postEditorModalStore';
 import { useEffect, useRef, useState } from 'react';
+import { useCreatePost } from '@/hooks/mutations/post/useCreatePost';
+import { toast } from 'sonner';
+import { Carousel, CarouselContent, CarouselItem } from '../ui/carousel';
+import Image from 'next/image';
+
+type Image = {
+  file: File;
+  previewURL: string;
+};
 
 export default function PostEditorModal() {
   const { isOpen, close } = usePostEdiotorModal();
+
+  // 글 등록 mutation 을 사용함
+  const { mutate: createPost, isPending: isCreatePostPending } = useCreatePost({
+    onSuccess: () => {
+      close();
+    },
+    onError: () => {
+      toast.error('포스트 생성에 실패했습니다.', {
+        position: 'top-center',
+      });
+    },
+  });
+
   // post 에 저장할 내용
   const [content, setContent] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 이미지 Input 태그 참조
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 이미지 미리보기 내용들
+  const [images, setImages] = useState<Image[]>([]);
+
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -17,31 +46,112 @@ export default function PostEditorModal() {
     }
   }, [content]);
 
-  // 자동 포커스 및 내용 초기화
+  // 자동포커스 및 내용 초기화
   useEffect(() => {
     if (!isOpen) return;
     textareaRef.current?.focus();
     setContent('');
+    setImages([]);
   }, [isOpen]);
-
+  
   const handleCloseModal = () => {
     close();
   };
+
+  // 실제 포스트 등록하기
+  const handleCreatePost = () => {
+    if (content.trim() === '') return;
+    createPost(content);
+  };
+
+  // 이미지들이 선택 되었을 때 실행할 핸들러
+  const handleSelectImages = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      // 객체로부터 배열을 반드는 Array.from
+      const files = Array.from(e.target.files);
+      files.forEach(file => {
+        setImages(prev => [
+          ...prev,
+          { file, previewURL: URL.createObjectURL(file) },
+        ]);
+      });
+    }
+    // 초기화 시킴
+    e.target.value = '';
+  };
+
+  // 이미지가 제거될 때 실행될 핸들러
+  const handleDeleteImage = (img: Image) => {
+    setImages(prevImg =>
+      prevImg.filter(item => item.previewURL != img.previewURL)
+    );
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={handleCloseModal}>
       <DialogContent className='max-h-[90vh]'>
         <DialogTitle>포스트 작성</DialogTitle>
         <textarea
+          disabled={isCreatePostPending}
           ref={textareaRef}
           value={content}
           onChange={e => setContent(e.target.value)}
           className='max-h-125 min-h-25 focus:outline-none'
           placeholder='새로운 글을 등록해주세요.'
         />
-        <Button variant='outline' className='cursor-pointer'>
+
+        {/* 이미지 선택 Input 태그 숨김 처리 */}
+        <input
+          onChange={handleSelectImages}
+          ref={fileInputRef}
+          type='file'
+          accept='image/*'
+          multiple
+          className='hidden'
+        />
+
+        {/* 이미지 미리보기 슬라이드 */}
+        {images.length > 0 && (
+          <Carousel>
+            <CarouselContent>
+              {images.map((img, index) => (
+                <CarouselItem key={index} className='basis-2/5'>
+                  <div className='relative w-full h-48'>
+                    <Image
+                      src={img.previewURL}
+                      alt='이미지 미리보기'
+                      fill
+                      unoptimized
+                      className='w-full rounded-sm object-cover'
+                    />
+                    {/* 삭제 아이콘 및 기능 추가 */}
+                    <div
+                      onClick={() => handleDeleteImage(img)}
+                      className='absolute top-0 right-0 m-1 cursor-pointer rounded-full bg-black/30 p-1'
+                    >
+                      <XIcon className='h-4 w-4 text-white' />
+                    </div>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+          </Carousel>
+        )}
+
+        <Button
+          onClick={() => fileInputRef.current?.click()}
+          variant='outline'
+          className='cursor-pointer'
+        >
           <ImageIcon /> 이미지 추가
         </Button>
-        <Button className='cursor-pointer'>저장</Button>
+        <Button
+          disabled={isCreatePostPending}
+          onClick={handleCreatePost}
+          className='cursor-pointer'
+        >
+          저장
+        </Button>
       </DialogContent>
     </Dialog>
   );
