@@ -4,17 +4,16 @@ import {
   CarouselContent,
   CarouselItem,
 } from '@/components/ui/carousel';
+import { usePostByIdData } from '@/hooks/queries/usePostByIdData';
 import { formatTimeAgo } from '@/lib/time';
-import type { Post } from '@/types/types';
+import { useSession } from '@/stores/session';
 import { HeartIcon, MessageCircle } from 'lucide-react';
 import Image from 'next/image';
+import FallBack from '../FallBack';
+import Loader from '../Loader';
 import DeletePostButton from './DeletePostButton';
 import EditPostItemButton from './EditPostItemButton';
 import defaultAvatar from '/public/assets/icons/default-avatar.jpg';
-import { useSession } from '@/stores/session';
-import Loader from '../Loader';
-import FallBack from '../FallBack';
-import { usePostByIdData } from '@/hooks/queries/usePostByIdData';
 
 export default function PostItem({ postId }: { postId: number }) {
   // 내가 만든 post 인지 확인
