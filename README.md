@@ -138,16 +138,52 @@ export default function DeletePostButton() {
 - props 로 값 전달 실행
 
 ```tsx
+import { Button } from '@/components/ui/button';
+import { useDeletePost } from '@/hooks/mutations/post/useDeletePost';
+import { useOpenAlertModal } from '@/stores/alertModalStore';
+import { toast } from 'sonner';
 
+export default function DeletePostButton({ id }: { id: number }) {
+  const openAlertModal = useOpenAlertModal();
+
+  const { mutate: deletePost, isPending: isDeletePostPending } = useDeletePost({
+    onError: error => {
+      toast.error('포스트 삭제에 실패하였습니다.', {
+        position: 'top-center',
+      });
+    },
+  });
+
+  const handleDeleteClick = () => {
+    openAlertModal({
+      title: '게시글 삭제',
+      description: '삭제된 포스트는 되돌릴 수 없습니다. 정말 삭제하시겠습니까?',
+      onPositive: () => {
+        // 포스트 삭제 요청
+        deletePost(id);
+      },
+    });
+  };
+  return (
+    <Button
+      disabled={isDeletePostPending}
+      className='cursor-pointer'
+      variant={'ghost'}
+      onClick={handleDeleteClick}
+    >
+      삭제
+    </Button>
+  );
+}
 ```
 
 ## 4. 이미지 삭제하기
 
-- 포스트 글을 지우면, 이미지들도 모두 지워주어야 함
+- 포스트 글을 지우면, 이미지들도 모두 지워주어야 함.
 
 ### 4.1. API 추가
 
-- `/src/apis/image.ts` 추가
+- `/src/apis/image.ts` 업데이트
 
 ```ts
 // 특정 경로 밑에 있는 모든 이미지를 지우는 기능
@@ -193,4 +229,15 @@ export function useDeletePost(callback?: UseMutationCallback) {
     },
   });
 }
+```
+
+## 5. 내 포스트만 지우기 버튼 출력
+
+- `  `
+
+```tsx
+// 내가 만든 post 인지 확인
+const session = useSession();
+const userId = session?.user.id;
+const isMine = userId === post.author.id;
 ```
