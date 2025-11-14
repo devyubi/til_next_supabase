@@ -26,6 +26,7 @@ export default function DeletePostButton({ id }: { id: number }) {
   };
   return (
     <Button
+      disabled={isDeletePostPending}
       className='cursor-pointer'
       variant={'ghost'}
       onClick={handleDeleteClick}
