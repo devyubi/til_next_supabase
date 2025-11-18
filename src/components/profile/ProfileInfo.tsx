@@ -6,8 +6,15 @@ import Loader from '../Loader';
 import defaultAvatar from '/public/assets/icons/default-avatar.jpg';
 import Image from 'next/image';
 import { useEffect } from 'react';
+import EditProfileButton from './EditProfileButton';
+import { useSession } from '@/stores/session';
 
 export default function ProfileInfo({ userId }: { userId: string }) {
+  // 세션 정보 참조하기 (zustand 보관됨)
+  const session = useSession();
+  // 본인인지를 검증
+  const isMine = session?.user.id === userId;
+
   const {
     data: profile,
     error: fetchProfileError,
@@ -35,6 +42,8 @@ export default function ProfileInfo({ userId }: { userId: string }) {
         <div className=' text-muted-foreground'>{profile?.bio}</div>
         <div className='text-muted-foreground'>{profile?.role}</div>
       </div>
+      {/* 프로필 수정 */}
+      {isMine && <EditProfileButton />}
     </div>
   );
 }
