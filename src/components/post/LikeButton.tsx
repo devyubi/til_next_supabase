@@ -18,7 +18,6 @@ export default function LikeButton({
   const handleLikeClick = () => {
     togglePostLike({ postId: id, userId: session!.user.id });
   };
-  console.log('isLiked', isLiked);
 
   return (
     <div

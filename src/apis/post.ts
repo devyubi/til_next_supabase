@@ -92,17 +92,24 @@ export async function fetchPosts({
   from,
   to,
   userId,
+  authorId,
 }: {
   from: number;
   to: number;
   userId: string;
+  authorId?: string;
 }) {
-  const { data, error } = await supabase
+  // authorId 가 있다면 추가적으로 Query 추가
+  const request = supabase
     .from('posts')
     .select('*, author: profiles!author_id(*), myLiked: likes!post_id(*)')
     .eq('myLiked.user_id', userId)
     .order('created_at', { ascending: false })
     .range(from, to);
+
+  if (authorId) request.eq('author_id', authorId);
+
+  const { data, error } = await request;
 
   if (error) throw error;
   return data.map(post => ({
