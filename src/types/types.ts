@@ -18,6 +18,12 @@ export type Post = PostEntity & {
   isLiked: boolean;
 };
 
+// 댓글 기능
+export type CommentEntity = Database['public']['Tables']['comments']['Row'];
+export type InsertCommentEntity = Database['public']['Tables']['comments']['Insert'];
+export type UpdateCommentEntity = Database['public']['Tables']['comments']['Update'];
+export type CommentTableEntity = Database['public']['Tables']['comments'];
+
 // 좋아요 기능
 export type LikeEntity = Database['public']['Tables']['likes']['Row'];
 export type InsertLikeEntity = Database['public']['Tables']['likes']['Insert'];
