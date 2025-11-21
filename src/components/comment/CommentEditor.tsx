@@ -17,7 +17,15 @@ type EditMode = {
   initialContent: string;
   onClose: () => void;
 };
-type Props = CreateMode | EditMode;
+type reflyMode = {
+  type: 'REPLY';
+  postId: number;
+  parentCommentId: number;
+  onClose: () => void;
+  rootCommentId: number;
+};
+
+type Props = CreateMode | EditMode | reflyMode;
 
 export default function CommentEditor(props: Props) {
   // mutation 활용
@@ -25,6 +33,8 @@ export default function CommentEditor(props: Props) {
     useCreateComment({
       onSuccess: () => {
         setContent('');
+        // 대댓글 창이 보이면 닫아줌
+        if (props.type === 'REPLY') props.onClose();
       },
       onError: error => {
         toast.error('댓글 등록에 실패했습니다.', { position: 'top-center' });
@@ -50,11 +60,19 @@ export default function CommentEditor(props: Props) {
     // 요청을 보내서 Insert 진행함.
     if (props.type === 'CREATE') {
       createComment({ postId: props.postId, content });
-    } else {
+    } else if (props.type === 'EDIT') {
       // update 실행
       updateComment({ id: props.commentId, content });
+    } else if (props.type === 'REPLY') {
+      createComment({
+        postId: props.postId,
+        content: content,
+        parentCommentId: props.parentCommentId,
+        rootCommentId: props.rootCommentId,
+      });
     }
   };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter') {
       handleSaveComment();
@@ -77,10 +95,8 @@ export default function CommentEditor(props: Props) {
         onKeyDown={handleKeyDown}
       />
       <div className='flex justify-end gap-2'>
-        {props.type === 'EDIT' && (
-          <Button variant='secondary' onClick={() => props.onClose()}>
-            취소
-          </Button>
+        {(props.type === 'EDIT' || props.type === 'REPLY') && (
+          <Button onClick={() => props.onClose()}>취소</Button>
         )}
         <Button onClick={handleSaveComment} disabled={isPending}>
           {isPending ? '등록중...' : props.type === 'EDIT' ? '수정' : '작성'}

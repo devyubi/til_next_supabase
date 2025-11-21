@@ -1,275 +1,12 @@
-# comments 테이블 작업
+# comments 댓글의 댓글
 
-## 1. 테이블 설정
+## 1. 댓글의 댓글을 배치시 고려사항
 
-- 테이블 명 : `commnets`
-- RLS : `활성화`
+- 댓글의 배치 순서가 최신순이 아님
+- 시간이 오래된 순서로 배치하고 댓글 출력
+- `/src/apis/comments.ts` 일부 옵션 조절
 
-- 전체 테이블 컬럼 및 FK
-  <img width="574" height="635" alt="Image" src="https://github.com/user-attachments/assets/9972acf2-3c53-4a96-b429-6390ae80aa0a" />
-
-### 1.1. 컬럼 설정
-
-- `id` : 기본대로 둠
-- `created_at` : 기본대로 둠
-- `content` : `text`, `Set as Empty String`, `Not Null`
-- `author_id` : `uuid`, `auth.uid()` `Not Null`
-- `content` : `int8`, `null`, `Not Null`
-
-### 1.2. FK 설정
-
-- `public` > `posts` > public.comments : `post_id` > public.posts : `id` > `Cascade` > `Cascade` > 저장
-
-- `public` > `profiles` > public.comments : `author_id` > public.profiles : `id` > `Cascade` > `Cascade` > 저장
-
-### 1.3. RLS 설정
-
-- `Authentication` > `Policies` > `comments` > Create Policy 버튼
-
-- `Anyone can select comment` > `SELECT` > `Default` > `true` > 저장버튼
-- `Users can insert comment` > `INSERT` > `authnicated` > `(select auth.uid()) = author_id` > 저장버튼
-- `Users can update comment` > `UPDATE` > `authnicated` > `(select auth.uid()) = author_id` > `(select auth.uid()) = author_id` > 저장버튼
-- `Users can delete comment` > `DELETE` > `authnicated` > `(select auth.uid()) = author_id` > 저장버튼
-
-## 2. 타입 생성
-
-- Supabase 로그인 후 진행
-
-```bash
-npx supabase login
-npm run generate-types
-```
-
-### 3. 타입 정리
-
-- `/src/types/types.ts`
-
-```ts
-export type CommentEntity = Database['public']['Tables']['comments']['Row'];
-export type InsertCommentEntity =
-  Database['public']['Tables']['comments']['Insert'];
-export type UpdateCommentEntity =
-  Database['public']['Tables']['comments']['Update'];
-export type CommentTableEntity = Database['public']['Tables']['comments'];
-```
-
-## 4. 댓글 저장하기
-
-- `/src/components/comment/CommentEditor.tsx`
-
-### 4.1. 컴포넌트 상태관리
-
-```tsx
-'use client';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { useState } from 'react';
-
-export default function CommentEditor() {
-  const [content, setContent] = useState('');
-  const handleSaveComment = () => {
-    if (content.trim() === '') return;
-    // 요청을 보내서 Insert 진행함.
-  };
-  return (
-    <div className='flex flex-col gap-2'>
-      <Textarea value={content} onChange={e => setContent(e.target.value)} />
-      <div className='flex justify-end'>
-        <Button onClick={handleSaveComment}>작성</Button>
-      </div>
-    </div>
-  );
-}
-```
-
-### 4.2. API 만들기
-
-- `/src/apis/comment.ts 파일` 생성
-
-```ts
-import supabase from '@/lib/supabase/client';
-
-// 1. 댓글 추가하기
-export async function createComment({
-  postId,
-  content,
-}: {
-  postId: number;
-  content: string;
-}) {
-  const { data, error } = await supabase
-    .from('comments')
-    .insert({ post_id: postId, content })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-```
-
-### 4.3. Mutation 만들기
-
-- `/src/hooks/mutation/comment 폴더` 생성
-- `/src/hooks/mutation/comment/useCreateComment.ts 파일` 생성
-
-```ts
-import { createComment } from '@/apis/comment';
-import { UseMutationCallback } from '@/types/types';
-import { useMutation } from '@tanstack/react-query';
-
-export default function useCreateComment(callback?: UseMutationCallback) {
-  return useMutation({
-    mutationFn: createComment,
-    onSuccess: () => {
-      if (callback?.onSuccess) callback.onSuccess();
-    },
-    onError: error => {
-      if (callback?.onError) callback.onError(error);
-    },
-  });
-}
-```
-
-### 4.4. 활용하기
-
-- props 추가 : 포스트의 아이디
-
-```tsx
-export default function CommentEditor({ postId }: { postId: number }) {
-```
-
-- mutation 활용
-
-```tsx
-// mutation 활용
-const { mutate: createComment, isPending: isCreateCommentPending } =
-  useCreateComment({
-    onSuccess: () => {
-      setContent('');
-    },
-    onError: error => {
-      toast.error('댓글 등록에 실패했습니다.', { position: 'top-center' });
-    },
-  });
-```
-
-- 전송하기
-
-```tsx
-const handleSaveComment = () => {
-  if (content.trim() === '') return;
-  // 요청을 보내서 Insert 진행함.
-  createComment({ postId, content });
-};
-```
-
-- 연속 등록 방지
-
-```tsx
-<div className='flex flex-col gap-2'>
-  <Textarea
-    value={content}
-    onChange={e => setContent(e.target.value)}
-    disabled={isCreateCommentPending}
-  />
-  <div className='flex justify-end'>
-    <Button onClick={handleSaveComment} disabled={isCreateCommentPending}>
-      {isCreateCommentPending ? '등록중...' : '작성'}
-    </Button>
-  </div>
-</div>
-```
-
-- 전체코드
-
-```tsx
-'use client';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { useState } from 'react';
-import useCreateComment from '@/hooks/mutations/comment/useCreateComment';
-import { toast } from 'sonner';
-
-export default function CommentEditor({ postId }: { postId: number }) {
-  // mutation 활용
-  const { mutate: createComment, isPending: isCreateCommentPending } =
-    useCreateComment({
-      onSuccess: () => {
-        setContent('');
-      },
-      onError: error => {
-        toast.error('댓글 등록에 실패했습니다.', { position: 'top-center' });
-      },
-    });
-  const [content, setContent] = useState('');
-  const handleSaveComment = () => {
-    if (content.trim() === '') return;
-    // 요청을 보내서 Insert 진행함.
-    createComment({ postId, content });
-  };
-  return (
-    <div className='flex flex-col gap-2'>
-      <Textarea
-        value={content}
-        onChange={e => setContent(e.target.value)}
-        disabled={isCreateCommentPending}
-      />
-      <div className='flex justify-end'>
-        <Button onClick={handleSaveComment} disabled={isCreateCommentPending}>
-          {isCreateCommentPending ? '등록중...' : '작성'}
-        </Button>
-      </div>
-    </div>
-  );
-}
-```
-
-### 4.5. page 에서 props 전달하기 적용
-
-- `/src/app/(protected)/post/[id]/page.tsx`
-- 변경내용
-
-```tsx
-<CommentEditor postId={Number(id)} />
-```
-
-- 전체코드
-
-```tsx
-import CommentEditor from '@/components/comment/CommentEditor';
-import CommentList from '@/components/comment/CommentList';
-import PostItem from '@/components/post/PostItem';
-import { redirect } from 'next/navigation';
-
-interface PostDetailPageProps {
-  params: {
-    id: string;
-  };
-}
-
-async function PostDetailPage({ params }: PostDetailPageProps) {
-  const { id } = await params;
-  if (!id || id.trim() === '') {
-    redirect('/');
-  }
-
-  return (
-    <div className='flex flex-col gap-5'>
-      <PostItem postId={Number(id)} type='DETAIL' />
-      <CommentEditor postId={Number(id)} />
-      <CommentList />
-    </div>
-  );
-}
-
-export default PostDetailPage;
-```
-
-## 5. 댓글 조회하기
-
-### 5.1. 댓글 조회하기
-
-- `/src/apis/comment.ts` 추가
+- `/src/apis/comment.ts` 일부 옵션 조절
 
 ```ts
 // 2. 댓글 조회하기
@@ -278,476 +15,52 @@ export async function fetchComments(postId: number) {
     .from('comments')
     .select('*, author: profiles!author_id(*)')
     .eq('post_id', postId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: true }); // 오래된 순
   if (error) throw error;
   return data;
 }
 ```
 
-### 5.2. Query 키 관리
+## 2. 캐시 데이터 정렬 후 갱신하기
 
-- `/src/lib/constants.ts`
+- `/src/hooks/mutations/comment/useCreateComment.ts`
 
 ```ts
-// 쿼리키 팩토링 상수
-
-export const QUERY_KEYS = {
- ...,
-  // 댓글 useQuery 키 생성 및 관리
-  comments: {
-    all: ['comments'],
-    post: (postId: number) => ['comments', 'post', postId],
-  },
-};
-...
+return [...comments, { ...newComment, author: profile }];
 ```
 
-- 전체코드
+- 전체 코드
 
 ```ts
-// 쿼리키 팩토링 상수
-
-export const QUERY_KEYS = {
-  // 프로필 useQuery 키 생성 및 관리
-  profile: {
-    all: ['profile'],
-    list: ['profile', 'list'],
-    byId: (userId: string) => ['profile', 'byId', userId],
-  },
-  // 포스트 useQuery 키 생성 및 관리
-  posts: {
-    all: ['posts'],
-    list: ['posts', 'list'],
-    byId: (postId: number) => ['posts', 'byId', postId],
-    // 추가됨
-    userList: (userId: string) => ['posts', 'userList', userId],
-  },
-  // 댓글 useQuery 키 생성 및 관리
-  comments: {
-    all: ['comments'],
-    post: (postId: number) => ['comments', 'post', postId],
-  },
-};
-
-// 버킷 이름 : Supabase 저장소
-export const BUCKET_NAME = 'uploads';
-
-// const session = useSession();
-
-// export const userId = session!.user.id;
-```
-
-### 5.3. Query 생성
-
-- `/src/hooks/queries/useCommentsData.ts 파일` 생성
-
-```ts
+import { createComment } from '@/apis/comment';
+import useProfileData from '@/hooks/queries/useProfileData';
 import { QUERY_KEYS } from '@/lib/constants';
-import { useQuery } from '@tanstack/react-query';
-import { fetchComments } from '@/apis/comment';
-
-export function useCommentsData(postId: number) {
-  return useQuery({
-    queryKey: QUERY_KEYS.comments.post(postId),
-    queryFn: async () => fetchComments(postId),
-  });
-}
-```
-
-### 5.4. 활용하기
-
-- `/src/app/(protected)/post/[id]/page.tsx`
-
-```tsx
-<CommentList postId={Number(id)} />
-```
-
-- `src\components\comment\CommentList.tsx` Props 처리
-
-```tsx
-export default function CommentList({ postId }: { postId: number }) {
-```
-
-- 활용하기
-
-```tsx
-// 활용하기
-const {
-  data: comments,
-  error: fetchCommentsError,
-  isPending: isFetchCommentsPending,
-} = useCommentsData(postId);
-```
-
-- 전체코드
-
-```tsx
-'use client';
-import CommentItem from '@/components/comment/CommentItem';
-import { useCommentsData } from '@/hooks/queries/useCommentsData';
-import FallBack from '../FallBack';
-import Loader from '../Loader';
-
-export default function CommentList({ postId }: { postId: number }) {
-  // 활용하기
-  const {
-    data: comments,
-    error: fetchCommentsError,
-    isPending: isFetchCommentsPending,
-  } = useCommentsData(postId);
-
-  if (fetchCommentsError) return <FallBack />;
-  if (isFetchCommentsPending) return <Loader />;
-
-  return (
-    <div className='flex flex-col gap-5'>
-      {comments?.map(comment => (
-        <CommentItem key={comment.id} {...comment} />
-      ))}
-    </div>
-  );
-}
-```
-
-### 5.5. Comment 타입과 Profile 타입 조합
-
-- `/src/types/types.ts` 추가
-
-```ts
-// 댓글과 프로필 타입 조합
-export type Comment = CommentEntity & {
-  author: ProfileEntity;
-};
-```
-
-### 5.6. 개별 아이템에 각 내용 출력
-
-```tsx
-import { Comment } from '@/types/types';
-import defaultAvatar from '/public/assets/icons/default-avatar.jpg';
-import Image from 'next/image';
-import Link from 'next/link';
-import { formatTimeAgo } from '@/lib/time';
-
-export default function CommentItem(comment: Comment) {
-  return (
-    <div className={'flex flex-col gap-8  border-b pb-5'}>
-      <div className='flex items-start gap-4'>
-        <Link href={'#'}>
-          <div className='flex h-full flex-col'>
-            <Image
-              className='h-10 w-10 rounded-full object-cover'
-              src={comment.author.avatar_url || defaultAvatar}
-              width={40}
-              height={40}
-              alt={comment.author.nickname || '회원 이미지'}
-            />
-          </div>
-        </Link>
-        <div className='flex w-full flex-col gap-2'>
-          <div className='font-bold'>{comment.author.nickname}</div>
-          <div>{comment.content}</div>
-          <div className='text-muted-foreground flex justify-between text-sm'>
-            <div className='flex items-center gap-2'>
-              <div className='cursor-pointer hover:underline'>댓글</div>
-              <div className='bg-border h-[13px] w-0.5'></div>
-              <div>{formatTimeAgo(comment.created_at)}</div>
-            </div>
-            <div className='flex items-center gap-2'>
-              <div className='cursor-pointer hover:underline'>수정</div>
-              <div className='bg-border h-[13px] w-0.5'></div>
-              <div className='cursor-pointer hover:underline'>삭제</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-```
-
-## 6. 댓글 수정하기
-
-- `/src/components/comment/CommentItem.tsx` 업데이트
-
-### 6.1. 작성자만 수정이 가능하도록 처리
-
-```tsx
-'use client';
-```
-
-```tsx
-const session = useSession();
-const isMine = session?.user.id === comment.author.id;
-```
-
-```tsx
-{
-  isMine && (
-    <>
-      <div className='cursor-pointer hover:underline'>수정</div>
-      <div className='bg-border h-[13px] w-0.5'></div>
-      <div className='cursor-pointer hover:underline'>삭제</div>
-    </>
-  );
-}
-```
-
-### 6.2. 수정 버튼 클릭시 수정 영역 출력하기
-
-```tsx
-const [iseEditing, setIsEditing] = useState(false);
-const toggleEditing = () => {
-  setIsEditing(prev => !prev);
-};
-```
-
-```tsx
-{
-  iseEditing ? (
-    <>
-      <CommentEditor postId={comment.post_id} />
-    </>
-  ) : (
-    <>
-      <div>{comment.content}</div>
-    </>
-  );
-}
-```
-
-```tsx
-{
-  isMine && (
-    <>
-      <div className='cursor-pointer hover:underline' onClick={toggleEditing}>
-        수정
-      </div>
-      <div className='bg-border h-[13px] w-0.5'></div>
-      <div className='cursor-pointer hover:underline'>삭제</div>
-    </>
-  );
-}
-```
-
-- 전체코드
-
-```tsx
-'use client';
-import { Comment } from '@/types/types';
-import defaultAvatar from '/public/assets/icons/default-avatar.jpg';
-import Image from 'next/image';
-import Link from 'next/link';
-import { formatTimeAgo } from '@/lib/time';
 import { useSession } from '@/stores/session';
-import { useState } from 'react';
-import CommentEditor from './CommentEditor';
+import { Comment, UseMutationCallback } from '@/types/types';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-export default function CommentItem(comment: Comment) {
+export default function useCreateComment(callback?: UseMutationCallback) {
+  const queryClient = useQueryClient();
+  // author_id 를 이용해서 프로필 들도 불러와야 함.
   const session = useSession();
+  const { data: profile } = useProfileData(session?.user.id);
 
-  const [iseEditing, setIsEditing] = useState(false);
-  const toggleEditing = () => {
-    setIsEditing(prev => !prev);
-  };
-
-  const isMine = session?.user.id === comment.author.id;
-
-  return (
-    <div className={'flex flex-col gap-8  border-b pb-5'}>
-      <div className='flex items-start gap-4'>
-        <Link href={'#'}>
-          <div className='flex h-full flex-col'>
-            <Image
-              className='h-10 w-10 rounded-full object-cover'
-              src={comment.author.avatar_url || defaultAvatar}
-              width={40}
-              height={40}
-              alt={comment.author.nickname || '회원 이미지'}
-            />
-          </div>
-        </Link>
-        <div className='flex w-full flex-col gap-2'>
-          <div className='font-bold'>{comment.author.nickname}</div>
-
-          {iseEditing ? (
-            <>
-              <CommentEditor postId={comment.post_id} />
-            </>
-          ) : (
-            <>
-              <div>{comment.content}</div>
-            </>
-          )}
-
-          <div className='text-muted-foreground flex justify-between text-sm'>
-            <div className='flex items-center gap-2'>
-              <div className='cursor-pointer hover:underline'>댓글</div>
-              <div className='bg-border h-[13px] w-0.5'></div>
-              <div>{formatTimeAgo(comment.created_at)}</div>
-            </div>
-            <div className='flex items-center gap-2'>
-              {isMine && (
-                <>
-                  <div
-                    className='cursor-pointer hover:underline'
-                    onClick={toggleEditing}
-                  >
-                    수정
-                  </div>
-                  <div className='bg-border h-[13px] w-0.5'></div>
-                  <div className='cursor-pointer hover:underline'>삭제</div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-```
-
-### 6.3. 댓글 수정 기능
-
-- `/src/components/comment/CommentEditor.tsx` 업데이트
-
-```tsx
-// 출력상태 구분 타입 정의
-type CreateMode = {
-  type: 'CREATE';
-  postId: number;
-};
-type EditMode = {
-  type: 'EDIT';
-  commentId: number;
-  initialContent: string;
-  onClose: () => void;
-};
-type Props = CreateMode | EditMode;
-```
-
-```tsx
-export default function CommentEditor(props: Props) {
-```
-
-- `CommentItem.tsx 에서 props 를 CommentEditor 에 전달하도록 추가`
-
-```tsx
-const handleSaveComment = () => {
-  if (content.trim() === '') return;
-  // 요청을 보내서 Insert 진행함.
-  if (props.type === 'CREATE') {
-    createComment({ postId: props.postId, content });
-  } else {
-    // update 실행
-  }
-};
-```
-
-- `src\components\post\PostItem.tsx` 수정
-
-```tsx
-{
-  iseEditing ? (
-    <>
-      <CommentEditor
-        type='EDIT'
-        commentId={comment.id}
-        initialContent={comment.content}
-        onClose={toggleEditing}
-      />
-    </>
-  ) : (
-    <>
-      <div>{comment.content}</div>
-    </>
-  );
-}
-```
-
-- `src\app\(protected)\post\[id]\page.tsx` 업데이트
-
-```tsx
-import CommentEditor from '@/components/comment/CommentEditor';
-import CommentList from '@/components/comment/CommentList';
-import PostItem from '@/components/post/PostItem';
-import { redirect } from 'next/navigation';
-
-interface PostDetailPageProps {
-  params: {
-    id: string;
-  };
-}
-
-async function PostDetailPage(props: PostDetailPageProps) {
-  const params = await props.params;
-  const { id } = params;
-  if (!id || id.trim() === '') {
-    redirect('/');
-  }
-
-  return (
-    <div className='flex flex-col gap-5'>
-      <PostItem postId={Number(id)} type='DETAIL' />
-      <CommentEditor type='CREATE' postId={Number(id)} />
-      <CommentList postId={Number(id)} />
-    </div>
-  );
-}
-
-export default PostDetailPage;
-```
-
-- `src\components\comment\commentEditor.tsx` 업데이트
-
-```tsx
-// 초기에 EDIT 이라면 내용 출력
-useEffect(() => {
-  if (props.type === 'EDIT') {
-    setContent(props.initialContent);
-  }
-}, []);
-```
-
-### 6.4. 업데이트 API 작성하기
-
-- `/src\apis\comment.ts` 추가
-
-```ts
-// 3. 댓글 수정하기
-export async function updateComment({
-  id,
-  content,
-}: {
-  id: number;
-  content: string;
-}) {
-  const { data, error } = await supabase
-    .from('comments')
-    .update({ content })
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-```
-
-### 6.5. Mutation 작성하기
-
-- `/src/hooks/mutations/comment/useUpdateComment.ts 파일` 생성
-
-```ts
-import { updateComment } from '@/apis/comment';
-import { UseMutationCallback } from '@/types/types';
-import { useMutation } from '@tanstack/react-query';
-
-export default function useUpdateComment(callback?: UseMutationCallback) {
   return useMutation({
-    mutationFn: updateComment,
-    onSuccess: () => {
+    mutationFn: createComment,
+    // 리턴 받은 성공데이터를 매개변수로 자동으로 받습니다.
+    onSuccess: newComment => {
       if (callback?.onSuccess) callback.onSuccess();
+      // 캐시 업데이트
+      queryClient.setQueryData<Comment[]>(
+        QUERY_KEYS.comments.post(newComment.post_id),
+        comments => {
+          if (!comments) throw new Error('댓글 목록을 찾을 수 없습니다.');
+          if (!profile) throw new Error('사용자 정보를 찾을 수 없습니다.');
+
+          // 새로운 댓글을 배열의 뒤에 추가 형태 반영
+          return [...comments, { ...newComment, author: profile }];
+        }
+      );
     },
     onError: error => {
       if (callback?.onError) callback.onError(error);
@@ -756,89 +69,92 @@ export default function useUpdateComment(callback?: UseMutationCallback) {
 }
 ```
 
-### 6.6. 활용하기
+## 3. 대댓글 테이블
 
-- `src\components\comment\commentEditor.tsx` 업데이트
+### 3.1. 테이블의 변경
 
-```tsx
-// 업데이트 mutation 활용
-const { mutate: updateComment, isPending: isUpdateCommentPending } =
-  useUpdateComment({
-    onSuccess: () => {
-      (props as EditMode).onClose();
-    },
-    onError: error => {
-      toast.error('댓글 수정에 실패했습니다.', { position: 'top-center' });
-    },
-  });
+- Post ID 와 Comment ID 는 생성 돼있음.
+- 추가로 부모 `Comment ID` 를 보관해서 관리.
+- `comments` 테이블 칼럼 추가 → `edit table`
+- `parent_comment_id` → `int8` → `NULL` → `is Nullable` → save 버튼
+
+### 3.2. FK 설정
+
+- 부모 댓글의 칼럼 id 를 참조할 수 있도록 외래키 관계 설정
+- Add foreign key reation 버튼 → `comments` → `parent_comment_id` → `id` → `cascade` → `cascade` → save 버튼
+
+### 3.3. 타입 반영
+
+```bash
+npx supabase login
+npm run generate-types
 ```
 
-```tsx
-const handleSaveComment = () => {
-  if (content.trim() === '') return;
-  // 요청을 보내서 Insert 진행함.
-  if (props.type === 'CREATE') {
-    createComment({ postId: props.postId, content });
-  } else {
-    // update 실행
-    updateComment({ id: props.commentId, content });
-  }
-};
-```
+## 4. API 수정하기
 
-### 6.7. 취소버튼 추가하기
+- `/src/apis/comment.ts` 업데이트
+- `parentCommentId?: number`
 
-- `src\components\comment\commentEditor.tsx` 업데이트
-
-```tsx
-'use client';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { useEffect, useState } from 'react';
-import useCreateComment from '@/hooks/mutations/comment/useCreateComment';
-import { toast } from 'sonner';
-import useUpdateComment from '@/hooks/mutations/comment/useUpdateComment';
-
-// 출력상태 구분 타입 정의
-type CreateMode = {
-  type: 'CREATE';
+```ts
+export async function createComment({
+  postId,
+  content,
+  parentCommentId,
+}: {
   postId: number;
-};
-type EditMode = {
-  type: 'EDIT';
-  commentId: number;
-  initialContent: string;
-  onClose: () => void;
-};
-type Props = CreateMode | EditMode;
+  content: string;
+  parentCommentId?: number;
+}) {
+  const { data, error } = await supabase
+    .from('comments')
+    .insert({ post_id: postId, content, parent_comment_id: parentCommentId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+```
 
-export default function CommentEditor(props: Props) {
-  ...
+## 5. 기능 구현하기
 
-  return (
+### 5.1. 대댓글 작성하기
+
+- `/src/components/comment/ComponentItem.tsx` 업데이트
+
+```tsx
+// 대댓글 상태 관리
+const [isReplying, setIsReplying] = useState(false);
+const toggleReply = () => {
+  setIsReplying(prev => !prev);
+};
+```
+
+```tsx
+<div onClick={toggleReply} className='cursor-pointer hover:underline'>
+  댓글
+</div>
+```
+
+```tsx
+{
+  /* 대댓글 영역 */
+}
+{
+  isReplying && (
     <div className='flex flex-col gap-2'>
-      <Textarea
-        value={content}
-        onChange={e => setContent(e.target.value)}
-        disabled={isPending}
-        onKeyDown={handleKeyDown}
+      <CommentEditor
+        type='REPLY'
+        postId={comment.post_id}
+        parentCommentId={comment.id}
+        onClose={toggleReply}
       />
-      <div className='flex justify-end gap-2'>
-        {props.type === 'EDIT' && (
-          <Button variant='secondary' onClick={() => props.onClose()}>
-            취소
-          </Button>
-        )}
-        <Button onClick={handleSaveComment} disabled={isPending}>
-          {isPending ? '등록중...' : '작성'}
-        </Button>
-      </div>
     </div>
   );
 }
 ```
 
-- 전체 코드
+- `/src/components/comment/CommentEditor.tsx` 업데이트
+- type 에 `REPLY` 추가
 
 ```tsx
 'use client';
@@ -860,7 +176,14 @@ type EditMode = {
   initialContent: string;
   onClose: () => void;
 };
-type Props = CreateMode | EditMode;
+type reflyMode = {
+  type: 'REPLY';
+  postId: number;
+  parentCommentId: number;
+  onClose: () => void;
+};
+
+type Props = CreateMode | EditMode | reflyMode;
 
 export default function CommentEditor(props: Props) {
   // mutation 활용
@@ -893,7 +216,7 @@ export default function CommentEditor(props: Props) {
     // 요청을 보내서 Insert 진행함.
     if (props.type === 'CREATE') {
       createComment({ postId: props.postId, content });
-    } else {
+    } else if (props.type === 'EDIT') {
       // update 실행
       updateComment({ id: props.commentId, content });
     }
@@ -926,7 +249,7 @@ export default function CommentEditor(props: Props) {
           </Button>
         )}
         <Button onClick={handleSaveComment} disabled={isPending}>
-          {isPending ? '등록중...' : '작성'}
+          {isPending ? '등록중...' : props.type === 'EDIT' ? '수정' : '작성'}
         </Button>
       </div>
     </div>
@@ -934,46 +257,758 @@ export default function CommentEditor(props: Props) {
 }
 ```
 
-- 로딩 처리
+- `/src/components/comment/ComponentItem.tsx` 업데이트
 
 ```tsx
-const isPending = isCreateCommentPending || isUpdateCommentPending;
+'use client';
+import { Comment } from '@/types/types';
+import defaultAvatar from '/public/assets/icons/default-avatar.jpg';
+import Image from 'next/image';
+import Link from 'next/link';
+import { formatTimeAgo } from '@/lib/time';
+import { useSession } from '@/stores/session';
+import { useState } from 'react';
+import CommentEditor from './CommentEditor';
+import useDeleteComment from '@/hooks/mutations/comment/useDeleteComment';
+import { toast } from 'sonner';
+import { useOpenAlertModal } from '@/stores/alertModalStore';
 
-return (
-  <div className='flex flex-col gap-2'>
-    <Textarea
-      value={content}
-      onChange={e => setContent(e.target.value)}
-      disabled={isPending}
-      onKeyDown={handleKeyDown}
-    />
-    <div className='flex justify-end gap-2'>
-      {props.type === 'EDIT' && (
-        <Button variant='secondary' onClick={() => props.onClose()}>
-          취소
-        </Button>
+export default function CommentItem(comment: Comment) {
+  const session = useSession();
+
+  const [iseEditing, setIsEditing] = useState(false);
+  const toggleEditing = () => {
+    setIsEditing(prev => !prev);
+  };
+
+  // 대댓글 상태 관리
+  const [isReplying, setIsReplying] = useState(false);
+  const toggleReply = () => {
+    setIsReplying(prev => !prev);
+  };
+
+  const isMine = session?.user.id === comment.author.id;
+  const openAlertModal = useOpenAlertModal();
+  // 삭제 mutation 활용하기
+  const { mutate: deleteComment, isPending: isDeleteCommentPending } =
+    useDeleteComment({
+      onSuccess: () => {},
+      onError: error => {
+        toast.error('댓글 삭제에 실패했습니다.', { position: 'top-center' });
+      },
+    });
+
+  const handleDeleteComment = () => {
+    openAlertModal({
+      title: '댓글 삭제',
+      description: `삭제된 댓글은 복구가 불가능합니다. 정말 삭제하시겠습니까?`,
+      onPositive: () => deleteComment(comment.id),
+      onNegative: () => {
+        console.log('취소');
+      },
+    });
+  };
+
+  return (
+    <div className={'flex flex-col gap-8  border-b pb-5'}>
+      <div className='flex items-start gap-4'>
+        <Link href={'#'}>
+          <div className='flex h-full flex-col'>
+            <Image
+              className='h-10 w-10 rounded-full object-cover'
+              src={comment.author.avatar_url || defaultAvatar}
+              width={40}
+              height={40}
+              alt={comment.author.nickname || '회원 이미지'}
+            />
+          </div>
+        </Link>
+        <div className='flex w-full flex-col gap-2'>
+          <div className='font-bold'>{comment.author.nickname}</div>
+
+          {iseEditing ? (
+            <>
+              <CommentEditor
+                type='EDIT'
+                commentId={comment.id}
+                initialContent={comment.content}
+                onClose={toggleEditing}
+              />
+            </>
+          ) : (
+            <>
+              <div>{comment.content}</div>
+            </>
+          )}
+
+          <div className='text-muted-foreground flex justify-between text-sm'>
+            <div className='flex items-center gap-2'>
+              <div
+                onClick={toggleReply}
+                className='cursor-pointer hover:underline'
+              >
+                댓글
+              </div>
+              <div className='bg-border h-[13px] w-0.5'></div>
+              <div>{formatTimeAgo(comment.created_at)}</div>
+            </div>
+            <div className='flex items-center gap-2'>
+              {isMine && (
+                <>
+                  <div
+                    className='cursor-pointer hover:underline'
+                    onClick={toggleEditing}
+                  >
+                    수정
+                  </div>
+                  <div className='bg-border h-[13px] w-0.5'></div>
+                  <div
+                    onClick={handleDeleteComment}
+                    className='cursor-pointer hover:underline'
+                  >
+                    {isDeleteCommentPending ? '삭제중...' : '삭제'}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* 대댓글 영역 */}
+      {isReplying && (
+        <div className='flex flex-col gap-2'>
+          <CommentEditor
+            type='REPLY'
+            postId={comment.post_id}
+            parentCommentId={comment.id}
+            onClose={toggleReply}
+          />
+        </div>
       )}
-      <Button onClick={handleSaveComment} disabled={isPending}>
-        {isPending ? '등록중...' : props.type === 'EDIT' ? '수정' : '작성'}
-      </Button>
     </div>
-  </div>
-);
+  );
+}
 ```
 
-## 7. 댓글 삭제하기
+### 5.2. UI 개선
 
-### 7.1. API 만들기
+- `/src/components/comment/CommentEditor.tsx` 업데이트
 
-- `src\apis\comment.ts` 추가
+```tsx
+'use client';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
+import useCreateComment from '@/hooks/mutations/comment/useCreateComment';
+import { toast } from 'sonner';
+import useUpdateComment from '@/hooks/mutations/comment/useUpdateComment';
+
+// 출력상태 구분 타입 정의
+type CreateMode = {
+  type: 'CREATE';
+  postId: number;
+};
+type EditMode = {
+  type: 'EDIT';
+  commentId: number;
+  initialContent: string;
+  onClose: () => void;
+};
+type reflyMode = {
+  type: 'REPLY';
+  postId: number;
+  parentCommentId: number;
+  onClose: () => void;
+};
+
+type Props = CreateMode | EditMode | reflyMode;
+
+export default function CommentEditor(props: Props) {
+  // mutation 활용
+  const { mutate: createComment, isPending: isCreateCommentPending } =
+    useCreateComment({
+      onSuccess: () => {
+        setContent('');
+      },
+      onError: error => {
+        toast.error('댓글 등록에 실패했습니다.', { position: 'top-center' });
+      },
+    });
+
+  // 업데이트 mutation 활용
+  const { mutate: updateComment, isPending: isUpdateCommentPending } =
+    useUpdateComment({
+      onSuccess: () => {
+        (props as EditMode).onClose();
+      },
+      onError: error => {
+        toast.error('댓글 수정에 실패했습니다.', { position: 'top-center' });
+      },
+    });
+
+  const isPending = isCreateCommentPending || isUpdateCommentPending;
+  const [content, setContent] = useState('');
+
+  const handleSaveComment = () => {
+    if (content.trim() === '') return;
+    // 요청을 보내서 Insert 진행함.
+    if (props.type === 'CREATE') {
+      createComment({ postId: props.postId, content });
+    } else if (props.type === 'EDIT') {
+      // update 실행
+      updateComment({ id: props.commentId, content });
+    }
+  };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter') {
+      handleSaveComment();
+    }
+  };
+
+  // 초기에 EDIT 이라면 내용 출력
+  useEffect(() => {
+    if (props.type === 'EDIT') {
+      setContent(props.initialContent);
+    }
+  }, []);
+
+  return (
+    <div className='flex flex-col gap-2'>
+      <Textarea
+        value={content}
+        onChange={e => setContent(e.target.value)}
+        disabled={isPending}
+        onKeyDown={handleKeyDown}
+      />
+      <div className='flex justify-end gap-2'>
+        {(props.type === 'EDIT' || props.type === 'REPLY') && (
+          <Button onClick={() => props.onClose()}>취소</Button>
+        )}
+        <Button onClick={handleSaveComment} disabled={isPending}>
+          {isPending ? '등록중...' : props.type === 'EDIT' ? '수정' : '작성'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+### 5.3. 대댓글 작성 기능 업데이트
+
+- `/src/components/comment/CommentEditor.tsx`
+
+```tsx
+const handleSaveComment = () => {
+  if (content.trim() === '') return;
+  // 요청을 보내서 Insert 진행함.
+  if (props.type === 'CREATE') {
+    createComment({ postId: props.postId, content });
+  } else if (props.type === 'EDIT') {
+    // update 실행
+    updateComment({ id: props.commentId, content });
+  } else if (props.type === 'REPLY') {
+    createComment({
+      postId: props.postId,
+      content: content,
+      parentCommentId: props.parentCommentId,
+    });
+  }
+};
+```
+
+- Test : supabase 테이블에서 대댓글 들어간 것 확인함
+
+## 6. Mutation 업데이트 하기
+
+- `/src/components/comment/CommentEditor.tsx`
+
+```tsx
+export default function CommentEditor(props: Props) {
+  // mutation 활용
+  const { mutate: createComment, isPending: isCreateCommentPending } =
+    useCreateComment({
+      onSuccess: () => {
+        setContent('');
+        // 대댓글 창이 보이면 닫아줌
+        if (props.type === 'REPLY') props.onClose();
+      },
+      onError: error => {
+        toast.error('댓글 등록에 실패했습니다.', { position: 'top-center' });
+      },
+    });
+```
+
+## 7. 부모 댓글 아래에 자식 댓글 배치하기
+
+- 중첩 배치
+- `/src/components/comment/CommentList.tsx` 추가 업데이트
+
+### 7.1. 리턴 받은 Comment 타입을 정렬해주는
+
+- 1 단계
+
+```tsx
+// parent_comment_id 를 이용하여 중첩 배열 구조 만들기
+import type { Comment } from '@/types/types';
+function toNestedComments(connents: Comment[]) {}
+```
+
+- 2 단계
+
+```tsx
+// parent_comment_id 를 이용하여 중첩 배열 구조 만들기
+import type { Comment } from '@/types/types';
+function toNestedComments(connents: Comment[]): 반환할 타입[] {}
+```
+
+- 3 단계 : 중첩타입 정의 (`/src/types/types.ts`)
 
 ```ts
-// 4. 댓글 삭제하기
-export async function deleteComment(id: number) {
+// 중첩 댓글 타입
+// 중첩 댓글 타입
+export type NestedComment = Comment & {
+  parentComment?: Comment;
+  children: NestedComment[]; // 재귀구조 패턴
+};
+```
+
+- 4 단계 : 반환타입 적용
+
+```tsx
+// parent_comment_id 를 이용해서 중첩 배열 구조 만들기
+import type { Comment, NestedComment } from '@/types/types';
+function toNestedComments(comments: Comment[]): NestedComment[] {}
+```
+
+- 5 단계 : 함수 내부 작성
+
+```tsx
+function toNestedComments(comments: Comment[]): NestedComment[] {
+  const result: NestedComment[] = [];
+  comments.forEach(comment => {
+    if (!comment.parent_comment_id) {
+      // 부모 댓글이 없으면 부모 댓글로 추가
+      result.push({ ...comment, children: [] });
+    } else {
+      // 특정 댓글에 부모가 존재하므로 대댓글
+      // 부모 댓글 찾기, 중첩 반복으로 찾아냄
+      const parentCommentIndex = result.findIndex(
+        item => item.id === comment.parent_comment_id
+      );
+      // 부모인덱스를 찾았다면, 인덱스를 통해서 자식을 추가
+      result[parentCommentIndex].children.push({
+        ...comment,
+        children: [],
+        parentComment: result[parentCommentIndex],
+      });
+    }
+  });
+
+  return result;
+}
+```
+
+- 6 단계 : 함수 활용
+
+```tsx
+'use client';
+import CommentItem from '@/components/comment/CommentItem';
+import { useCommentsData } from '@/hooks/queries/useCommentsData';
+import FallBack from '../FallBack';
+import Loader from '../Loader';
+
+// parent_comment_id 를 이용하여 중첩 배열 구조 만들기
+import type { Comment, NestedComment } from '@/types/types';
+
+function toNestedComments(comments: Comment[]): NestedComment[] {
+  const result: NestedComment[] = [];
+  comments.forEach(comment => {
+    if (!comment.parent_comment_id) {
+      // 부모 댓글이 없으면 부모 댓글로 추가
+      result.push({ ...comment, children: [] });
+    } else {
+      // 특정 댓글에 부모가 존재하므로 대댓글
+      // 부모 댓글 찾기, 중첩 반복으로 찾아냄
+      const parentCommentIndex = result.findIndex(
+        item => item.id === comment.parent_comment_id
+      );
+      // 부모인덱스를 찾았다면, 인덱스를 통해서 자식을 추가
+      result[parentCommentIndex].children.push({
+        ...comment,
+        children: [],
+        parentComment: result[parentCommentIndex],
+      });
+    }
+  });
+
+  return result;
+}
+
+export default function CommentList({ postId }: { postId: number }) {
+  // 활용하기
+  const {
+    data: comments,
+    error: fetchCommentsError,
+    isPending: isFetchCommentsPending,
+  } = useCommentsData(postId);
+
+  if (fetchCommentsError) return <FallBack />;
+  if (isFetchCommentsPending) return <Loader />;
+
+  // 중첩된 댓글 목록 뽑기
+  const nestedCommnets = toNestedComments(comments || []);
+
+  return (
+    <div className='flex flex-col gap-5'>
+      {nestedCommnets.map(comment => (
+        <CommentItem key={comment.id} {...comment} />
+      ))}
+    </div>
+  );
+}
+```
+
+### 7.2. 대댓글 출력하기
+
+- `/src/components/comment/CommentItem.tsx`
+- Props 타입 변경 (`NestedComment`)
+
+```tsx
+export default function CommentItem(comment: NestedComment) {
+```
+
+```tsx
+{
+  /* Children 댓글 출력 */
+}
+{
+  comment.children.map(comment => (
+    <CommentItem key={comment.id} {...comment} />
+  ));
+}
+```
+
+```tsx
+'use client';
+import { Comment, NestedComment } from '@/types/types';
+import defaultAvatar from '/public/assets/icons/default-avatar.jpg';
+import Image from 'next/image';
+import Link from 'next/link';
+import { formatTimeAgo } from '@/lib/time';
+import { useSession } from '@/stores/session';
+import { useState } from 'react';
+import CommentEditor from './CommentEditor';
+import useDeleteComment from '@/hooks/mutations/comment/useDeleteComment';
+import { toast } from 'sonner';
+import { useOpenAlertModal } from '@/stores/alertModalStore';
+
+export default function CommentItem(comment: NestedComment) {
+  const session = useSession();
+
+  const [iseEditing, setIsEditing] = useState(false);
+  const toggleEditing = () => {
+    setIsEditing(prev => !prev);
+  };
+
+  // 대댓글 상태 관리
+  const [isReplying, setIsReplying] = useState(false);
+  const toggleReply = () => {
+    setIsReplying(prev => !prev);
+  };
+
+  const isMine = session?.user.id === comment.author.id;
+  const openAlertModal = useOpenAlertModal();
+  // 삭제 mutation 활용하기
+  const { mutate: deleteComment, isPending: isDeleteCommentPending } =
+    useDeleteComment({
+      onSuccess: () => {},
+      onError: error => {
+        toast.error('댓글 삭제에 실패했습니다.', { position: 'top-center' });
+      },
+    });
+
+  const handleDeleteComment = () => {
+    openAlertModal({
+      title: '댓글 삭제',
+      description: `삭제된 댓글은 복구가 불가능합니다. 정말 삭제하시겠습니까?`,
+      onPositive: () => deleteComment(comment.id),
+      onNegative: () => {
+        console.log('취소');
+      },
+    });
+  };
+
+  return (
+    <div className={'flex flex-col gap-8  border-b pb-5'}>
+      <div className='flex items-start gap-4'>
+        <Link href={'#'}>
+          <div className='flex h-full flex-col'>
+            <Image
+              className='h-10 w-10 rounded-full object-cover'
+              src={comment.author.avatar_url || defaultAvatar}
+              width={40}
+              height={40}
+              alt={comment.author.nickname || '회원 이미지'}
+            />
+          </div>
+        </Link>
+        <div className='flex w-full flex-col gap-2'>
+          <div className='font-bold'>{comment.author.nickname}</div>
+
+          {iseEditing ? (
+            <>
+              <CommentEditor
+                type='EDIT'
+                commentId={comment.id}
+                initialContent={comment.content}
+                onClose={toggleEditing}
+              />
+            </>
+          ) : (
+            <>
+              <div>{comment.content}</div>
+            </>
+          )}
+
+          <div className='text-muted-foreground flex justify-between text-sm'>
+            <div className='flex items-center gap-2'>
+              <div
+                onClick={toggleReply}
+                className='cursor-pointer hover:underline'
+              >
+                댓글
+              </div>
+              <div className='bg-border h-[13px] w-0.5'></div>
+              <div>{formatTimeAgo(comment.created_at)}</div>
+            </div>
+            <div className='flex items-center gap-2'>
+              {isMine && (
+                <>
+                  <div
+                    className='cursor-pointer hover:underline'
+                    onClick={toggleEditing}
+                  >
+                    수정
+                  </div>
+                  <div className='bg-border h-[13px] w-0.5'></div>
+                  <div
+                    onClick={handleDeleteComment}
+                    className='cursor-pointer hover:underline'
+                  >
+                    {isDeleteCommentPending ? '삭제중...' : '삭제'}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* 대댓글 영역 */}
+      {isReplying && (
+        <div className='flex flex-col gap-2'>
+          <CommentEditor
+            type='REPLY'
+            postId={comment.post_id}
+            parentCommentId={comment.id}
+            onClose={toggleReply}
+          />
+        </div>
+      )}
+      {/* Children 댓글 출력 */}
+      {comment.children.map(comment => (
+        <CommentItem key={comment.id} {...comment} />
+      ))}
+    </div>
+  );
+}
+```
+
+### 7.3. UI / UX 적용하기
+
+- `/src/components/comment/CommentItem.tsx` 업데이트
+
+```tsx
+'use client';
+import { Comment, NestedComment } from '@/types/types';
+import defaultAvatar from '/public/assets/icons/default-avatar.jpg';
+import Image from 'next/image';
+import Link from 'next/link';
+import { formatTimeAgo } from '@/lib/time';
+import { useSession } from '@/stores/session';
+import { useState } from 'react';
+import CommentEditor from './CommentEditor';
+import useDeleteComment from '@/hooks/mutations/comment/useDeleteComment';
+import { toast } from 'sonner';
+import { useOpenAlertModal } from '@/stores/alertModalStore';
+
+export default function CommentItem(comment: NestedComment) {
+  const session = useSession();
+
+  const [iseEditing, setIsEditing] = useState(false);
+  const toggleEditing = () => {
+    setIsEditing(prev => !prev);
+  };
+
+  // 대댓글 상태 관리
+  const [isReplying, setIsReplying] = useState(false);
+  const toggleReply = () => {
+    setIsReplying(prev => !prev);
+  };
+
+  const isMine = session?.user.id === comment.author.id;
+
+  // UI / UX 적용 : 일반적 댓글인지, 대댓글인지 정의함
+  const isRootComment = comment.parentComment === undefined;
+
+  const openAlertModal = useOpenAlertModal();
+  // 삭제 mutation 활용하기
+  const { mutate: deleteComment, isPending: isDeleteCommentPending } =
+    useDeleteComment({
+      onSuccess: () => {},
+      onError: error => {
+        toast.error('댓글 삭제에 실패했습니다.', { position: 'top-center' });
+      },
+    });
+
+  const handleDeleteComment = () => {
+    openAlertModal({
+      title: '댓글 삭제',
+      description: `삭제된 댓글은 복구가 불가능합니다. 정말 삭제하시겠습니까?`,
+      onPositive: () => deleteComment(comment.id),
+      onNegative: () => {
+        console.log('취소');
+      },
+    });
+  };
+
+  return (
+    <div
+      className={`flex flex-col gap-8 pb-5 ${isRootComment ? 'border-b' : 'ml-6'}`}
+    >
+      <div className='flex items-start gap-4'>
+        <Link href={'#'}>
+          <div className='flex h-full flex-col'>
+            <Image
+              className='h-10 w-10 rounded-full object-cover'
+              src={comment.author.avatar_url || defaultAvatar}
+              width={40}
+              height={40}
+              alt={comment.author.nickname || '회원 이미지'}
+            />
+          </div>
+        </Link>
+        <div className='flex w-full flex-col gap-2'>
+          <div className='font-bold'>{comment.author.nickname}</div>
+
+          {iseEditing ? (
+            <>
+              <CommentEditor
+                type='EDIT'
+                commentId={comment.id}
+                initialContent={comment.content}
+                onClose={toggleEditing}
+              />
+            </>
+          ) : (
+            <>
+              <div>{comment.content}</div>
+            </>
+          )}
+
+          <div className='text-muted-foreground flex justify-between text-sm'>
+            <div className='flex items-center gap-2'>
+              <div
+                onClick={toggleReply}
+                className='cursor-pointer hover:underline'
+              >
+                댓글
+              </div>
+              <div className='bg-border h-[13px] w-0.5'></div>
+              <div>{formatTimeAgo(comment.created_at)}</div>
+            </div>
+            <div className='flex items-center gap-2'>
+              {isMine && (
+                <>
+                  <div
+                    className='cursor-pointer hover:underline'
+                    onClick={toggleEditing}
+                  >
+                    수정
+                  </div>
+                  <div className='bg-border h-[13px] w-0.5'></div>
+                  <div
+                    onClick={handleDeleteComment}
+                    className='cursor-pointer hover:underline'
+                  >
+                    {isDeleteCommentPending ? '삭제중...' : '삭제'}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* 대댓글 영역 */}
+      {isReplying && (
+        <div className='flex flex-col gap-2'>
+          <CommentEditor
+            type='REPLY'
+            postId={comment.post_id}
+            parentCommentId={comment.id}
+            onClose={toggleReply}
+          />
+        </div>
+      )}
+      {/* Children 댓글 출력 */}
+      {comment.children.map(comment => (
+        <CommentItem key={comment.id} {...comment} />
+      ))}
+    </div>
+  );
+}
+```
+
+## 8. 무한 대댓글
+
+- 대대댓글에 대해서 태그를 통해서 바로 위의 대대댓글임을 표현함.
+- 자신의 `최상위 댓글의 아이디`와 `댓글의 아이디` 도 알아야함
+
+### 8.1. 최상위 글의 아이디를 위한 칼럼 추가
+
+- `root_comment_id` → `int8` → `NULL`
+- 외래키 관계 설정
+- `public` → `comments` → `root_comment_id` → `id` → `Cascade` → `Cascade` → Save
+
+### 8.2. 타입 정의
+
+```bash
+npm run generate-types
+```
+
+### 8.3. 댓글 추가 API 수정
+
+- `src\apis\comment.ts`
+
+```ts
+export async function createComment({
+  postId,
+  content,
+  parentCommentId,
+  rootCommentId,
+}: {
+  postId: number;
+  content: string;
+  parentCommentId?: number;
+  rootCommentId?: number;
+}) {
   const { data, error } = await supabase
     .from('comments')
-    .delete()
-    .eq('id', id)
+    .insert({
+      post_id: postId,
+      content,
+      parent_comment_id: parentCommentId,
+      rootCommentId,
+    })
     .select()
     .single();
   if (error) throw error;
@@ -981,198 +1016,111 @@ export async function deleteComment(id: number) {
 }
 ```
 
-### 7.2. Mutation 만들기
+### 8.4. 컴포넌트 수정
 
-- `src\hooks\mutations\comment\useDeleteComment.ts 파일` 생성
-
-```ts
-import { deleteComment } from '@/apis/comment';
-import { UseMutationCallback } from '@/types/types';
-import { useMutation } from '@tanstack/react-query';
-
-export default function useDeleteComment(callback?: UseMutationCallback) {
-  return useMutation({
-    mutationFn: deleteComment,
-    onSuccess: () => {
-      if (callback?.onSuccess) callback.onSuccess();
-    },
-    onError: error => {
-      if (callback?.onError) callback.onError(error);
-    },
-  });
-}
-```
-
-### 7.3. 활용하기
-
-- `src\components\comment\CommentItem.tsx` 업데이트
-
-```tsx
-// 삭제 mutation 활용하기
-const { mutate: deleteComment, isPending: isDeleteCommentPending } =
-  useDeleteComment({
-    onSuccess: () => {},
-    onError: error => {
-      toast.error('댓글 삭제에 실패했습니다.', { position: 'top-center' });
-    },
-  });
-```
-
-- 얼라트창 띄우기
-
-```tsx
-const openAlertModal = useOpenAlertModal();
-```
-
-```tsx
-const handleDeleteComment = () => {
-  openAlertModal({
-    title: '댓글 삭제',
-    description: `삭제된 댓글은 복구가 불가능합니다. 정말 삭제하시겠습니까?`,
-    onPositive: () => deleteComment(comment.id),
-    onNegative: () => {
-      console.log('취소');
-    },
-  });
-};
-```
+- `/src/components/comment/CommentItem.tsx`
 
 ```tsx
 {
-  isMine && (
-    <>
-      <div className='cursor-pointer hover:underline' onClick={toggleEditing}>
-        수정
-      </div>
-      <div className='bg-border h-[13px] w-0.5'></div>
-      <div
-        onClick={handleDeleteComment}
-        className='cursor-pointer hover:underline'
-      >
-        {isDeleteCommentPending ? '삭제중...' : '삭제'}
-      </div>
-    </>
+  /* 대댓글 영역 */
+}
+{
+  isReplying && (
+    <div className='flex flex-col gap-2'>
+      <CommentEditor
+        type='REPLY'
+        postId={comment.post_id}
+        parentCommentId={comment.id}
+        onClose={toggleReply}
+        rootCommentId={comment.root_comment_id || comment.id}
+      />
+    </div>
   );
 }
 ```
 
-## 8. 댓글 생성 캐시 관리
+- `/src/components/comment/CommentEditor.tsx`
 
-- `/src/hooks/mutations/comment/useCreateComment.ts` 업데이트
+```tsx
+type reflyMode = {
+  type: 'REPLY';
+  postId: number;
+  parentCommentId: number;
+  onClose: () => void;
+  rootCommentId: number;
+};
+```
 
-```ts
-import { createComment } from '@/apis/comment';
-import useProfileData from '@/hooks/queries/useProfileData';
-import { QUERY_KEYS } from '@/lib/constants';
-import { useSession } from '@/stores/session';
-import { Comment, UseMutationCallback } from '@/types/types';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+```tsx
+const handleSaveComment = () => {
+  if (content.trim() === '') return;
+  // 요청을 보내서 Insert 진행함.
+  if (props.type === 'CREATE') {
+    createComment({ postId: props.postId, content });
+  } else if (props.type === 'EDIT') {
+    // update 실행
+    updateComment({ id: props.commentId, content });
+  } else if (props.type === 'REPLY') {
+    createComment({
+      postId: props.postId,
+      content: content,
+      parentCommentId: props.parentCommentId,
+      rootCommentId: props.rootCommentId,
+    });
+  }
+};
+```
 
-export default function useCreateComment(callback?: UseMutationCallback) {
-  const queryClient = useQueryClient();
-  // author_id 를 이용해서 프로필 들도 불러와야 함.
-  const session = useSession();
-  const { data: profile } = useProfileData(session?.user.id);
+### 8.5. 댓글 리스트 `Comment ID` 출력
 
-  return useMutation({
-    mutationFn: createComment,
-    // 리턴 받은 성공데이터를 매개변수로 자동으로 받습니다.
-    onSuccess: newComment => {
-      if (callback?.onSuccess) callback.onSuccess();
-      // 캐시 업데이트
-      queryClient.setQueryData<Comment[]>(
-        QUERY_KEYS.comments.post(newComment.post_id),
-        comments => {
-          if (!comments) throw new Error('댓글 목록을 찾을 수 없습니다.');
-          if (!profile) throw new Error('사용자 정보를 찾을 수 없습니다.');
+- `/src/components/comment/CommentList.tsx`
 
-          return [{ ...newComment, author: profile }, ...comments];
-        }
+```tsx
+function toNestedComments(comments: Comment[]): NestedComment[] {
+  const result: NestedComment[] = [];
+  comments.forEach(comment => {
+    if (!comment.parent_comment_id) {
+      result.push({ ...comment, children: [] });
+    } else {
+      // 특정 댓글에 부모가 존재하므로 대댓글
+      // 부모에 대한 정보를 찾아냄
+      const rootCommentIndex = result.findIndex(
+        item => item.id === comment.root_comment_id
       );
-    },
-    onError: error => {
-      if (callback?.onError) callback.onError(error);
-    },
+
+      // 실제 부모의 Comment 정보
+      const parentComment = comments.find(
+        item => item.id === comment.parent_comment_id
+      );
+
+      if (rootCommentIndex === -1) return;
+      if (!parentComment) return;
+
+      result[rootCommentIndex].children.push({
+        ...comment,
+        children: [],
+        parentComment: result[rootCommentIndex],
+      });
+    }
   });
+
+  return result;
 }
 ```
 
-## 9. 댓글 수정 캐시 관리
+- `/src/components/comment/CommentItem.tsx` 해시태그 출력
 
-- `/src/hooks/mutations/comment/useUpdateComment.ts` 업데이트
-
-```ts
-import { updateComment } from '@/apis/comment';
-import { QUERY_KEYS } from '@/lib/constants';
-import type { Comment, UseMutationCallback } from '@/types/types';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-
-export default function useUpdateComment(callback?: UseMutationCallback) {
-  const queryClient = useQueryClient();
-  // author_id 를 이용해서 프로필 들도 불러와야 함.
-
-  return useMutation({
-    mutationFn: updateComment,
-    // 성공시 리턴받은 데이터 자동 매개변수 전달
-    onSuccess: updatedComment => {
-      if (callback?.onSuccess) callback.onSuccess();
-
-      // 캐시 업데이트
-      queryClient.setQueryData<Comment[]>(
-        QUERY_KEYS.comments.post(updatedComment.post_id),
-        comments => {
-          if (!comments)
-            throw new Error('댓글이 캐시데이터에 보관되어 있지 않습니다.');
-
-          // 댓글 한개 수정한 내용을 업데이트한 전체 배열을 리턴
-          return comments.map(comment => {
-            if (comment.id === updatedComment.id)
-              return { ...comment, ...updatedComment };
-
-            return comment;
-          });
-        }
-      );
-    },
-    onError: error => {
-      if (callback?.onError) callback.onError(error);
-    },
-  });
-}
+```tsx
+          ) : (
+            <>
+              <div>
+                {isOverTwoLevels && (
+                  <span className='font-bold text-blue-500'>
+                    @{comment.parentComment?.author.nickname}
+                  </span>
+                )}
+                {comment.content}
+              </div>
+            </>
 ```
 
-## 10. 댓글 삭제 캐시 관리
-
-- `/src/hooks/mutations/comment/useDeleteComments.ts` 업데이트
-
-```ts
-import { deleteComment } from '@/apis/comment';
-import { QUERY_KEYS } from '@/lib/constants';
-import { Comment, UseMutationCallback } from '@/types/types';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-
-export default function useDeleteComment(callback?: UseMutationCallback) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: deleteComment,
-    // 삭제 성공된 리턴 결과를 자동 매개변수로 전달
-    onSuccess: deletedComment => {
-      if (callback?.onSuccess) callback.onSuccess();
-
-      queryClient.setQueryData<Comment[]>(
-        QUERY_KEYS.comments.post(deletedComment.post_id),
-        comments => {
-          if (!comments)
-            throw new Error('댓글이 캐시데이터에 보관되어있지 않습니다.');
-          return comments.filter(comment => comment.id !== deletedComment.id);
-        }
-      );
-    },
-    onError: error => {
-      if (callback?.onError) callback.onError(error);
-    },
-  });
-}
-```
-
-## 11. UI 마무리하기
