@@ -1,11 +1,25 @@
+'use client';
 import CommentItem from '@/components/comment/CommentItem';
+import { useCommentsData } from '@/hooks/queries/useCommentsData';
+import FallBack from '../FallBack';
+import Loader from '../Loader';
 
-export default function CommentList() {
+export default function CommentList({ postId }: { postId: number }) {
+  // 활용하기
+  const {
+    data: comments,
+    error: fetchCommentsError,
+    isPending: isFetchCommentsPending,
+  } = useCommentsData(postId);
+
+  if (fetchCommentsError) return <FallBack />;
+  if (isFetchCommentsPending) return <Loader />;
+
   return (
     <div className='flex flex-col gap-5'>
-      <CommentItem />
-      <CommentItem />
-      <CommentItem />
+      {comments?.map(comment => (
+        <CommentItem key={comment.id} {...comment} />
+      ))}
     </div>
   );
 }
